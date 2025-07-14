@@ -1,5 +1,5 @@
 import { TelemetryManager } from "./TelemetryManager";
-import { ClickPlugin } from "./plugins/ClickPlugin";
+import { ClickPlugin, LogPlugin } from "./plugins";
 import type { TelemetryConfig } from "./types";
 import { initialTelemetryConfig } from "./utils/initialTelemetryConfig";
 export * from "./logger";
@@ -11,6 +11,10 @@ export function initTelemetry(
 
   if (typeof window !== "undefined" && userConfig.enableClicks) {
     manager.register(new ClickPlugin());
+  }
+
+  if (typeof window !== "undefined" && userConfig.enableLogs) {
+    manager.register(new LogPlugin());
   }
 
   // to add new, you can add:

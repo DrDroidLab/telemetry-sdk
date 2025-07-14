@@ -1,3 +1,4 @@
+import { TELEMETRY_SDK_PREFIX } from "../constants";
 import { LogLevel, LoggerConfig, Logger } from "../types/Logger";
 
 export class SimpleLogger implements Logger {
@@ -8,7 +9,7 @@ export class SimpleLogger implements Logger {
       level: LogLevel.INFO,
       enableConsole: true,
       enableTimestamp: true,
-      prefix: "[TelemetrySDK]",
+      prefix: TELEMETRY_SDK_PREFIX,
       ...config,
     };
   }
