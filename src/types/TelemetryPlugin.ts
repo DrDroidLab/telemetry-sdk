@@ -1,0 +1,8 @@
+import { TelemetryManager } from "../TelemetryManager";
+
+export type TelemetryPlugin = {
+  /** Called once, passing in the manager to call `.capture(...)` on */
+  initialize(manager: TelemetryManager): void;
+  /** Optional cleanup hook */
+  teardown?(): void;
+};
