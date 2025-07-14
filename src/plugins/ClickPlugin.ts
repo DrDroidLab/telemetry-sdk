@@ -22,11 +22,9 @@ export class ClickPlugin extends BasePlugin {
     };
 
     this.logger.debug("Click event captured", {
-      meta: {
-        tag: tgt.tagName,
-        id: tgt.id,
-        coordinates: { x: e.clientX, y: e.clientY },
-      },
+      tag: tgt.tagName,
+      id: tgt.id,
+      coordinates: { x: e.clientX, y: e.clientY },
     });
 
     this.manager.capture(evt);

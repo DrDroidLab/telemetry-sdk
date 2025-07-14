@@ -1,10 +1,7 @@
-import { LogLevel, TelemetryConfig } from "../types";
+import type { TelemetryConfig } from "../types/TelemetryConfig";
 
 export const initialTelemetryConfig: TelemetryConfig = {
-  endpoint: "https://api.telemetry.com/v1/events",
-  enableClicks: true,
+  endpoint: "",
   batchSize: 50,
-  logging: {
-    level: LogLevel.INFO,
-  },
+  enableClicks: true,
 };

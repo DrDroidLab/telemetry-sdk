@@ -27,11 +27,9 @@ export class TelemetryManager {
     this.logger = getLogger();
 
     this.logger.info("TelemetryManager initialized", {
-      meta: {
-        endpoint: config.endpoint,
-        batchSize: this.batchSize,
-        enableClicks: config.enableClicks,
-      },
+      endpoint: config.endpoint,
+      batchSize: this.batchSize,
+      enableClicks: config.enableClicks,
     });
   }
 
@@ -39,29 +37,23 @@ export class TelemetryManager {
     this.plugins.push(plugin);
     plugin.initialize(this);
     this.logger.debug("Plugin registered", {
-      meta: {
-        pluginName: plugin.constructor.name,
-        totalPlugins: this.plugins.length,
-      },
+      pluginName: plugin.constructor.name,
+      totalPlugins: this.plugins.length,
     });
   }
 
   capture(evt: TelemetryEvent) {
     this.buffer.push(evt);
     this.logger.debug("Event captured", {
-      meta: {
-        eventType: evt.eventType,
-        eventName: evt.eventName,
-        bufferSize: this.buffer.length,
-      },
+      eventType: evt.eventType,
+      eventName: evt.eventName,
+      bufferSize: this.buffer.length,
     });
 
     if (this.buffer.length >= this.batchSize) {
       this.logger.info("Buffer full, triggering flush", {
-        meta: {
-          bufferSize: this.buffer.length,
-          batchSize: this.batchSize,
-        },
+        bufferSize: this.buffer.length,
+        batchSize: this.batchSize,
       });
       this.flush();
     }
@@ -75,23 +67,19 @@ export class TelemetryManager {
 
     const batch = this.buffer.splice(0);
     this.logger.info("Flushing events", {
-      meta: {
-        eventCount: batch.length,
-        events: batch.map((e) => ({ type: e.eventType, name: e.eventName })),
-      },
+      eventCount: batch.length,
+      events: batch.map((e) => ({ type: e.eventType, name: e.eventName })),
     });
 
     try {
       await this.exporter.export(batch);
       this.logger.info("Events exported successfully", {
-        meta: { eventCount: batch.length },
+        eventCount: batch.length,
       });
     } catch (error) {
       this.logger.error("Failed to export events", {
-        meta: {
-          error: error instanceof Error ? error.message : String(error),
-          eventCount: batch.length,
-        },
+        error: error instanceof Error ? error.message : String(error),
+        eventCount: batch.length,
       });
       // Re-add events to buffer on failure
       this.buffer.unshift(...batch);
@@ -105,14 +93,12 @@ export class TelemetryManager {
       try {
         p.teardown?.();
         this.logger.debug("Plugin teardown completed", {
-          meta: { pluginName: p.constructor.name },
+          pluginName: p.constructor.name,
         });
       } catch (error) {
         this.logger.error("Plugin teardown failed", {
-          meta: {
-            pluginName: p.constructor.name,
-            error: error instanceof Error ? error.message : String(error),
-          },
+          pluginName: p.constructor.name,
+          error: error instanceof Error ? error.message : String(error),
         });
       }
     }

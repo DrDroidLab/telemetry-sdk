@@ -1,11 +1,9 @@
-import { Logger as WinstonLogger } from "winston";
-
 export enum LogLevel {
-  ERROR = "error",
-  WARN = "warn",
-  INFO = "info",
-  DEBUG = "debug",
-  SILENT = "silent",
+  ERROR = 0,
+  WARN = 1,
+  INFO = 2,
+  DEBUG = 3,
+  SILENT = 4,
 }
 
 export interface LoggerConfig {
@@ -13,9 +11,14 @@ export interface LoggerConfig {
   enableConsole?: boolean;
   enableTimestamp?: boolean;
   prefix?: string;
-  format?: "json" | "simple" | "custom";
-  customFormat?: (info: any) => string;
+  formatter?: (level: LogLevel, message: string, meta?: any) => string;
 }
 
-// Re-export Winston's Logger type for convenience
-export type Logger = WinstonLogger;
+export interface Logger {
+  error(message: string, meta?: any): void;
+  warn(message: string, meta?: any): void;
+  info(message: string, meta?: any): void;
+  debug(message: string, meta?: any): void;
+  setLevel(level: LogLevel): void;
+  setConfig(config: Partial<LoggerConfig>): void;
+}
