@@ -1,18 +1,15 @@
 import { TelemetryManager } from "./TelemetryManager";
 import { ClickPlugin } from "./plugins/ClickPlugin";
 import type { TelemetryConfig } from "./types";
+import { initialTelemetryConfig } from "./utils/initialTelemetryConfig";
 export * from "./logger";
 
-export function initTelemetry(userConfig: TelemetryConfig) {
-  const config = {
-    batchSize: 50,
-    enableClicks: true,
-    ...userConfig,
-  };
+export function initTelemetry(
+  userConfig: TelemetryConfig = initialTelemetryConfig,
+) {
+  const manager = new TelemetryManager(userConfig);
 
-  const manager = new TelemetryManager(config);
-
-  if (typeof window !== "undefined" && config.enableClicks) {
+  if (typeof window !== "undefined" && userConfig.enableClicks) {
     manager.register(new ClickPlugin());
   }
 
