@@ -13,11 +13,20 @@ export class TelemetryManager {
   private plugins: TelemetryPlugin[] = [];
   private exporter: TelemetryExporter;
   private batchSize: number;
+  private flushInterval: number;
+  private maxRetries: number;
+  private retryDelay: number;
+  private samplingRate: number;
+  private flushTimer?: NodeJS.Timeout;
   private logger: Logger;
 
   constructor(config: TelemetryConfig) {
     this.exporter = new HTTPExporter(config.endpoint);
     this.batchSize = config.batchSize ?? 50;
+    this.flushInterval = config.flushInterval ?? 30000;
+    this.maxRetries = config.maxRetries ?? 3;
+    this.retryDelay = config.retryDelay ?? 1000;
+    this.samplingRate = config.samplingRate ?? 1.0;
 
     // Initialize logger
     if (config.logging) {
@@ -26,10 +35,17 @@ export class TelemetryManager {
     }
     this.logger = getLogger();
 
+    // Start periodic flush timer
+    this.startFlushTimer();
+
     this.logger.info("TelemetryManager initialized", {
       endpoint: config.endpoint,
       batchSize: this.batchSize,
+      flushInterval: this.flushInterval,
+      maxRetries: this.maxRetries,
+      samplingRate: this.samplingRate,
       enableClicks: config.enableClicks,
+      enablePerformance: config.enablePerformance,
     });
   }
 
@@ -51,6 +67,16 @@ export class TelemetryManager {
       return;
     }
 
+    // Apply sampling
+    if (Math.random() > this.samplingRate) {
+      this.logger.debug("Event dropped due to sampling", {
+        eventType: evt.eventType,
+        eventName: evt.eventName,
+        samplingRate: this.samplingRate,
+      });
+      return;
+    }
+
     this.buffer.push(evt);
     this.logger.debug("Event captured", {
       eventType: evt.eventType,
@@ -67,6 +93,20 @@ export class TelemetryManager {
     }
   }
 
+  private startFlushTimer(): void {
+    if (this.flushInterval > 0) {
+      this.flushTimer = setInterval(() => {
+        if (this.buffer.length > 0) {
+          this.logger.debug("Periodic flush triggered", {
+            bufferSize: this.buffer.length,
+            flushInterval: this.flushInterval,
+          });
+          this.flush();
+        }
+      }, this.flushInterval);
+    }
+  }
+
   async flush() {
     if (!this.buffer.length) {
       this.logger.debug("No events to flush");
@@ -79,18 +119,37 @@ export class TelemetryManager {
       events: batch.map((e) => ({ type: e.eventType, name: e.eventName })),
     });
 
-    try {
-      await this.exporter.export(batch);
-      this.logger.info("Events exported successfully", {
-        eventCount: batch.length,
-      });
-    } catch (error) {
-      this.logger.error("Failed to export events", {
-        error: error instanceof Error ? error.message : String(error),
-        eventCount: batch.length,
-      });
-      // Re-add events to buffer on failure
-      this.buffer.unshift(...batch);
+    let retries = 0;
+    while (retries <= this.maxRetries) {
+      try {
+        await this.exporter.export(batch);
+        this.logger.info("Events exported successfully", {
+          eventCount: batch.length,
+          retries,
+        });
+        return;
+      } catch (error) {
+        retries++;
+        this.logger.error("Failed to export events", {
+          error: error instanceof Error ? error.message : String(error),
+          eventCount: batch.length,
+          retry: retries,
+          maxRetries: this.maxRetries,
+        });
+
+        if (retries <= this.maxRetries) {
+          // Wait before retrying
+          await new Promise((resolve) =>
+            setTimeout(resolve, this.retryDelay * retries),
+          );
+        } else {
+          // Re-add events to buffer on final failure
+          this.buffer.unshift(...batch);
+          this.logger.error("Max retries exceeded, events returned to buffer", {
+            eventCount: batch.length,
+          });
+        }
+      }
     }
   }
 
@@ -103,6 +162,12 @@ export class TelemetryManager {
 
     // Stop accepting new events
     this.isShutdown = true;
+
+    // Clear flush timer
+    if (this.flushTimer) {
+      clearInterval(this.flushTimer);
+      this.flushTimer = undefined;
+    }
 
     // Teardown all plugins
     for (const p of this.plugins) {
@@ -139,6 +204,12 @@ export class TelemetryManager {
 
     // Stop accepting new events
     this.isShutdown = true;
+
+    // Clear flush timer
+    if (this.flushTimer) {
+      clearInterval(this.flushTimer);
+      this.flushTimer = undefined;
+    }
 
     // Immediately clear all data without flushing
     this.buffer = [];
