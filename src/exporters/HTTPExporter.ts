@@ -1,7 +1,7 @@
 import { TelemetryExporter, TelemetryEvent } from "../types";
 import { getLogger } from "../logger";
 
-export class HttpExporter implements TelemetryExporter {
+export class HTTPExporter implements TelemetryExporter {
   private logger = getLogger();
 
   constructor(private endpoint: string) {
@@ -9,6 +9,13 @@ export class HttpExporter implements TelemetryExporter {
   }
 
   async export(events: TelemetryEvent[]): Promise<void> {
+    if (!this.endpoint || this.endpoint.trim() === "") {
+      this.logger.warn("HTTP export skipped - no endpoint configured", {
+        eventCount: events.length,
+      });
+      return;
+    }
+
     this.logger.debug("Exporting events via HTTP", {
       endpoint: this.endpoint,
       eventCount: events.length,

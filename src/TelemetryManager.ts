@@ -1,4 +1,4 @@
-import { HttpExporter } from "./exporters";
+import { HTTPExporter } from "./exporters";
 import { getLogger, setLogger, createLogger } from "./logger";
 import type {
   TelemetryConfig,
@@ -16,7 +16,7 @@ export class TelemetryManager {
   private logger: Logger;
 
   constructor(config: TelemetryConfig) {
-    this.exporter = new HttpExporter(config.endpoint);
+    this.exporter = new HTTPExporter(config.endpoint);
     this.batchSize = config.batchSize ?? 50;
 
     // Initialize logger
