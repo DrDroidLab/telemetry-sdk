@@ -43,6 +43,14 @@ export class TelemetryManager {
   }
 
   capture(evt: TelemetryEvent) {
+    if (this.isShutdown) {
+      this.logger.warn("Cannot capture event - TelemetryManager is shutdown", {
+        eventType: evt.eventType,
+        eventName: evt.eventName,
+      });
+      return;
+    }
+
     this.buffer.push(evt);
     this.logger.debug("Event captured", {
       eventType: evt.eventType,
@@ -86,9 +94,17 @@ export class TelemetryManager {
     }
   }
 
-  shutdown() {
+  /**
+   * Shutdown the telemetry manager and cleanup all resources
+   * This should be called when the telemetry instance is no longer needed
+   */
+  async shutdown(): Promise<void> {
     this.logger.info("Shutting down TelemetryManager");
 
+    // Stop accepting new events
+    this.isShutdown = true;
+
+    // Teardown all plugins
     for (const p of this.plugins) {
       try {
         p.teardown?.();
@@ -103,7 +119,37 @@ export class TelemetryManager {
       }
     }
 
-    this.flush();
+    // Flush any remaining events
+    await this.flush();
+
+    // Clear all references
+    this.plugins = [];
+    this.buffer = [];
+    this.exporter = null as any;
+
     this.logger.info("TelemetryManager shutdown complete");
   }
+
+  /**
+   * Force destroy the telemetry manager (for strict mode cleanup)
+   * This immediately stops all operations and clears all data
+   */
+  destroy(): void {
+    this.logger.warn("Force destroying TelemetryManager");
+
+    // Stop accepting new events
+    this.isShutdown = true;
+
+    // Immediately clear all data without flushing
+    this.buffer = [];
+    this.plugins = [];
+    this.exporter = null as any;
+
+    this.logger.info("TelemetryManager destroyed");
+  }
+
+  /**
+   * Check if the telemetry manager is shutdown
+   */
+  isShutdown = false;
 }
