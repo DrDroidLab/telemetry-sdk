@@ -21,6 +21,7 @@ export class TelemetryManager {
   private logger: Logger;
 
   constructor(config: TelemetryConfig) {
+    this.validateConfig(config);
     this.exporter = new HTTPExporter(config.endpoint);
     this.batchSize = config.batchSize ?? 50;
     this.flushInterval = config.flushInterval ?? 30000;
@@ -107,49 +108,66 @@ export class TelemetryManager {
     }
   }
 
+  private isFlushing = false;
+
   async flush() {
     if (!this.buffer.length) {
       this.logger.debug("No events to flush");
       return;
     }
 
-    const batch = this.buffer.splice(0);
-    this.logger.info("Flushing events", {
-      eventCount: batch.length,
-      events: batch.map((e) => ({ type: e.eventType, name: e.eventName })),
-    });
+    // Prevent concurrent flush operations
+    if (this.isFlushing) {
+      this.logger.debug("Flush already in progress, skipping");
+      return;
+    }
 
-    let retries = 0;
-    while (retries <= this.maxRetries) {
-      try {
-        await this.exporter.export(batch);
-        this.logger.info("Events exported successfully", {
-          eventCount: batch.length,
-          retries,
-        });
-        return;
-      } catch (error) {
-        retries++;
-        this.logger.error("Failed to export events", {
-          error: error instanceof Error ? error.message : String(error),
-          eventCount: batch.length,
-          retry: retries,
-          maxRetries: this.maxRetries,
-        });
+    this.isFlushing = true;
 
-        if (retries <= this.maxRetries) {
-          // Wait before retrying
-          await new Promise((resolve) =>
-            setTimeout(resolve, this.retryDelay * retries),
-          );
-        } else {
-          // Re-add events to buffer on final failure
-          this.buffer.unshift(...batch);
-          this.logger.error("Max retries exceeded, events returned to buffer", {
+    try {
+      const batch = this.buffer.splice(0);
+      this.logger.info("Flushing events", {
+        eventCount: batch.length,
+        events: batch.map((e) => ({ type: e.eventType, name: e.eventName })),
+      });
+
+      let retries = 0;
+      while (retries <= this.maxRetries) {
+        try {
+          await this.exporter.export(batch);
+          this.logger.info("Events exported successfully", {
             eventCount: batch.length,
+            retries,
           });
+          return;
+        } catch (error) {
+          retries++;
+          this.logger.error("Failed to export events", {
+            error: error instanceof Error ? error.message : String(error),
+            eventCount: batch.length,
+            retry: retries,
+            maxRetries: this.maxRetries,
+          });
+
+          if (retries <= this.maxRetries) {
+            // Wait before retrying
+            await new Promise((resolve) =>
+              setTimeout(resolve, this.retryDelay * retries),
+            );
+          } else {
+            // Re-add events to buffer on final failure
+            this.buffer.unshift(...batch);
+            this.logger.error(
+              "Max retries exceeded, events returned to buffer",
+              {
+                eventCount: batch.length,
+              },
+            );
+          }
         }
       }
+    } finally {
+      this.isFlushing = false;
     }
   }
 
@@ -223,4 +241,39 @@ export class TelemetryManager {
    * Check if the telemetry manager is shutdown
    */
   isShutdown = false;
+
+  private validateConfig(config: TelemetryConfig): void {
+    if (!config.endpoint || config.endpoint.trim() === "") {
+      throw new Error("Telemetry endpoint is required");
+    }
+
+    try {
+      new URL(config.endpoint);
+    } catch {
+      throw new Error("Invalid endpoint URL format");
+    }
+
+    if (
+      config.samplingRate !== undefined &&
+      (config.samplingRate < 0 || config.samplingRate > 1)
+    ) {
+      throw new Error("Sampling rate must be between 0 and 1");
+    }
+
+    if (config.batchSize !== undefined && config.batchSize <= 0) {
+      throw new Error("Batch size must be greater than 0");
+    }
+
+    if (config.flushInterval !== undefined && config.flushInterval < 0) {
+      throw new Error("Flush interval must be non-negative");
+    }
+
+    if (config.maxRetries !== undefined && config.maxRetries < 0) {
+      throw new Error("Max retries must be non-negative");
+    }
+
+    if (config.retryDelay !== undefined && config.retryDelay < 0) {
+      throw new Error("Retry delay must be non-negative");
+    }
+  }
 }

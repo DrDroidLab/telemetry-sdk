@@ -1,6 +1,6 @@
-export type TelemetryEvent = {
+export type TelemetryEvent<T = Record<string, unknown>> = {
   eventType: string;
   eventName: string;
-  payload: any;
+  payload: T;
   timestamp: string;
 };

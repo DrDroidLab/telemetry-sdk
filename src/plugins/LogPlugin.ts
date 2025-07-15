@@ -44,12 +44,6 @@ export class LogPlugin extends BasePlugin {
               timestamp: new Date().toISOString(),
             };
             this.manager.capture(evt);
-
-            // 4. internal logger (using original console to avoid recursion)
-            this.originals[method]!(
-              `${TELEMETRY_SDK_PREFIX} Intercepted console.${method}`,
-              { args },
-            );
           }
         };
       },

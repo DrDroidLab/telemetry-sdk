@@ -14,6 +14,7 @@ export class NetworkPlugin extends BasePlugin {
   private originalXHRSend: typeof XMLHttpRequest.prototype.send;
   private unregister: (() => void) | null = null;
   private telemetryEndpoint: string = "";
+  private xhrHandlers = new WeakMap<XMLHttpRequest, () => void>();
 
   constructor() {
     super();
@@ -154,7 +155,8 @@ export class NetworkPlugin extends BasePlugin {
         const startTime = performance.now();
         const originalOnReadyStateChange = this.onreadystatechange;
 
-        this.onreadystatechange = function () {
+        // Create a handler that doesn't capture references to avoid memory leaks
+        const handler = function (this: XMLHttpRequest) {
           if (this.readyState === XMLHttpRequest.DONE) {
             const endTime = performance.now();
             const duration = endTime - startTime;
@@ -190,6 +192,10 @@ export class NetworkPlugin extends BasePlugin {
             );
           }
         };
+
+        // Store the handler reference for cleanup
+        self.xhrHandlers.set(this, handler);
+        this.onreadystatechange = handler;
       }
 
       return originalSend.call(this, body);
@@ -208,6 +214,9 @@ export class NetworkPlugin extends BasePlugin {
     // Restore original XMLHttpRequest methods
     XMLHttpRequest.prototype.open = this.originalXHROpen;
     XMLHttpRequest.prototype.send = this.originalXHRSend;
+
+    // Clean up stored handlers to prevent memory leaks
+    this.xhrHandlers = new WeakMap();
 
     this.logger.info("NetworkPlugin teardown complete");
   }
