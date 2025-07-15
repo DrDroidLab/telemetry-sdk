@@ -13,6 +13,9 @@ A lightweight, configurable telemetry tracking library for JavaScript/TypeScript
 - **Network Monitoring**: Automatic HTTP request tracking
 - **Console Logging**: Intercepts and tracks console logs
 - **User Interactions**: Captures click events and user interactions
+- **User Identification**: Track user identity with traits and session management
+- **Custom Events**: Capture user-defined events with flexible payloads
+- **Session Tracking**: Automatic session ID generation and tracking
 
 ## 📦 Installation
 
@@ -38,6 +41,13 @@ const telemetry = initTelemetry({
   enableLogs: true,
   enableNetwork: true,
   enablePerformance: true,
+  enableCustomEvents: true, // Enable custom events
+});
+
+// Identify a user (optional)
+telemetry.identify("user-123", {
+  name: "John Doe",
+  email: "john@example.com",
 });
 
 // The SDK automatically starts collecting telemetry data
@@ -86,19 +96,22 @@ Initializes the telemetry SDK with the provided configuration.
 
 #### Configuration Options
 
-| Option              | Type           | Default                      | Description                                |
-| ------------------- | -------------- | ---------------------------- | ------------------------------------------ |
-| `endpoint`          | `string`       | `"https://httpbin.org/post"` | The endpoint URL to send telemetry data to |
-| `batchSize`         | `number`       | `50`                         | Number of events to batch before sending   |
-| `flushInterval`     | `number`       | `30000`                      | Flush interval in milliseconds             |
-| `maxRetries`        | `number`       | `3`                          | Maximum number of retry attempts           |
-| `retryDelay`        | `number`       | `1000`                       | Delay between retries in milliseconds      |
-| `samplingRate`      | `number`       | `1.0`                        | Sampling rate (0.0 to 1.0)                 |
-| `enableClicks`      | `boolean`      | `true`                       | Enable click event tracking                |
-| `enableLogs`        | `boolean`      | `true`                       | Enable console log tracking                |
-| `enableNetwork`     | `boolean`      | `true`                       | Enable network request tracking            |
-| `enablePerformance` | `boolean`      | `true`                       | Enable performance metrics tracking        |
-| `logging`           | `LoggerConfig` | `{}`                         | Logging configuration                      |
+| Option               | Type           | Default                      | Description                                |
+| -------------------- | -------------- | ---------------------------- | ------------------------------------------ |
+| `endpoint`           | `string`       | `"https://httpbin.org/post"` | The endpoint URL to send telemetry data to |
+| `batchSize`          | `number`       | `50`                         | Number of events to batch before sending   |
+| `flushInterval`      | `number`       | `30000`                      | Flush interval in milliseconds             |
+| `maxRetries`         | `number`       | `3`                          | Maximum number of retry attempts           |
+| `retryDelay`         | `number`       | `1000`                       | Delay between retries in milliseconds      |
+| `samplingRate`       | `number`       | `1.0`                        | Sampling rate (0.0 to 1.0)                 |
+| `enableClicks`       | `boolean`      | `true`                       | Enable click event tracking                |
+| `enableLogs`         | `boolean`      | `true`                       | Enable console log tracking                |
+| `enableNetwork`      | `boolean`      | `true`                       | Enable network request tracking            |
+| `enablePerformance`  | `boolean`      | `true`                       | Enable performance metrics tracking        |
+| `enableCustomEvents` | `boolean`      | `false`                      | Enable custom events plugin                |
+| `sessionId`          | `string`       | Auto-generated               | Custom session ID for tracking             |
+| `userId`             | `string`       | `undefined`                  | Initial user ID for identification         |
+| `logging`            | `LoggerConfig` | `{}`                         | Logging configuration                      |
 
 ### TelemetryManager Methods
 
@@ -146,6 +159,55 @@ Retries sending failed events.
 await telemetry.retryFailedEvents();
 ```
 
+#### `identify(userId: string, traits?: Record<string, unknown>): void`
+
+Identifies a user with the given user ID and optional traits. This creates an "identify" event and sets the user ID for all subsequent events.
+
+```typescript
+// Identify a user with traits
+telemetry.identify("user-123", {
+  name: "John Doe",
+  email: "john@example.com",
+  plan: "premium",
+  signupDate: "2024-01-15",
+});
+
+// Identify without traits
+telemetry.identify("user-456");
+```
+
+#### `getSessionId(): string`
+
+Returns the current session ID.
+
+```typescript
+const sessionId = telemetry.getSessionId();
+console.log("Current session:", sessionId);
+```
+
+#### `getUserId(): string | undefined`
+
+Returns the current user ID if set.
+
+```typescript
+const userId = telemetry.getUserId();
+console.log("Current user:", userId);
+```
+
+#### `getCustomEventsPlugin(): CustomEventsPlugin | undefined`
+
+Returns the custom events plugin if enabled, allowing you to capture custom events.
+
+```typescript
+const customPlugin = telemetry.getCustomEventsPlugin();
+if (customPlugin) {
+  customPlugin.captureCustomEvent("ecommerce", "purchase", {
+    productId: "prod_123",
+    amount: 99.99,
+  });
+}
+```
+
 #### Monitoring Methods
 
 ```typescript
@@ -157,6 +219,81 @@ const bufferedCount = telemetry.getBufferedEventsCount();
 console.log(
   `Failed: ${failedCount}, Queued: ${queuedCount}, Buffered: ${bufferedCount}`
 );
+```
+
+## 🎯 Custom Events & User Identification
+
+### User Identification
+
+The SDK supports user identification through the `identify()` method, which creates an "identify" event and sets the user ID for all subsequent events.
+
+```typescript
+// Initialize with custom events enabled
+const telemetry = initTelemetry({
+  endpoint: "https://your-api.com/telemetry",
+  enableCustomEvents: true,
+  sessionId: "custom-session-123", // Optional: provide custom session ID
+  userId: "user-456", // Optional: provide initial user ID
+});
+
+// Identify a user with traits
+telemetry.identify("user-789", {
+  name: "John Doe",
+  email: "john@example.com",
+  plan: "premium",
+  signupDate: "2024-01-15",
+});
+```
+
+### Custom Events
+
+When `enableCustomEvents` is enabled, you can capture custom events using the CustomEventsPlugin:
+
+```typescript
+const customPlugin = telemetry.getCustomEventsPlugin();
+if (customPlugin) {
+  // Capture a custom event with type, name, and payload
+  customPlugin.captureCustomEvent("ecommerce", "product_viewed", {
+    productId: "prod_123",
+    productName: "Wireless Headphones",
+    category: "Electronics",
+    price: 99.99,
+    currency: "USD",
+  });
+
+  // Capture a pre-built event object
+  const customEvent = {
+    eventType: "analytics",
+    eventName: "page_view",
+    payload: {
+      page: "/dashboard",
+      referrer: document.referrer,
+    },
+    timestamp: new Date().toISOString(),
+  };
+  customPlugin.captureEvent(customEvent);
+}
+```
+
+### Session Tracking
+
+All events automatically include session tracking. The session ID is either provided in the configuration or auto-generated:
+
+```typescript
+// Events automatically include session and user context
+telemetry.capture({
+  eventType: "interaction",
+  eventName: "button_click",
+  payload: {
+    buttonId: "submit-form",
+    page: "/contact",
+  },
+  timestamp: new Date().toISOString(),
+});
+
+// The above event will automatically include:
+// - sessionId: "custom-session-123" (or auto-generated)
+// - userId: "user-789" (if identified)
 ```
 
 ## 📊 Event Types
@@ -236,6 +373,45 @@ The SDK automatically captures several types of events:
 }
 ```
 
+### Identify Events (`identify/user_identified`)
+
+```typescript
+{
+  eventType: 'identify',
+  eventName: 'user_identified',
+  payload: {
+    userId: 'user-123',
+    traits: {
+      name: 'John Doe',
+      email: 'john@example.com',
+      plan: 'premium',
+    },
+  },
+  timestamp: '2024-01-01T12:00:00.000Z',
+  sessionId: 'session_1234567890_abc123def',
+  userId: 'user-123',
+}
+```
+
+### Custom Events (User-defined)
+
+```typescript
+{
+  eventType: 'ecommerce', // User-defined
+  eventName: 'product_viewed', // User-defined
+  payload: {
+    productId: 'prod_123',
+    productName: 'Wireless Headphones',
+    category: 'Electronics',
+    price: 99.99,
+    currency: 'USD',
+  },
+  timestamp: '2024-01-01T12:00:00.000Z',
+  sessionId: 'session_1234567890_abc123def',
+  userId: 'user-123',
+}
+```
+
 ## 🔌 Plugin System
 
 The SDK uses a plugin architecture for extensibility. Built-in plugins include:
@@ -255,6 +431,20 @@ Monitors fetch and XMLHttpRequest calls.
 ### PerformancePlugin
 
 Collects performance metrics including Web Vitals.
+
+### CustomEventsPlugin
+
+Enables capturing custom events with user-defined types, names, and payloads. Must be enabled via `enableCustomEvents: true` in the configuration.
+
+```typescript
+const customPlugin = telemetry.getCustomEventsPlugin();
+if (customPlugin) {
+  customPlugin.captureCustomEvent("ecommerce", "purchase", {
+    productId: "prod_123",
+    amount: 99.99,
+  });
+}
+```
 
 ### Creating Custom Plugins
 

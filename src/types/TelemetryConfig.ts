@@ -1,4 +1,4 @@
-import { LoggerConfig } from "./Logger";
+import type { LoggerConfig } from "./Logger";
 
 export type TelemetryConfig = {
   endpoint: string;
@@ -12,4 +12,7 @@ export type TelemetryConfig = {
   retryDelay?: number;
   samplingRate?: number;
   logging?: LoggerConfig;
+  sessionId?: string;
+  userId?: string;
+  enableCustomEvents?: boolean;
 };

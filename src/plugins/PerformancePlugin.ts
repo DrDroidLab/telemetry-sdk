@@ -1,5 +1,4 @@
 import { BasePlugin } from "./BasePlugin";
-import { getLogger } from "../logger";
 import type { TelemetryEvent } from "../types";
 
 interface PerformanceMetrics {

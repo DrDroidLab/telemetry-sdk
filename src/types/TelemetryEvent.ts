@@ -3,4 +3,6 @@ export type TelemetryEvent<T = Record<string, unknown>> = {
   eventName: string;
   payload: T;
   timestamp: string;
+  sessionId?: string;
+  userId?: string;
 };

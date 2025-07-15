@@ -31,6 +31,7 @@ export function initTelemetry(
       manager.register(new PerformancePlugin());
     }
 
+    // Custom events are handled automatically by TelemetryManager if enabled
     // to add new, you can add:
     // if (config.enableScroll) manager.register(new ScrollPlugin())
 

@@ -1,5 +1,4 @@
 import { BasePlugin } from "./BasePlugin";
-import { getLogger } from "../logger";
 import type { TelemetryEvent } from "../types";
 import { TELEMETRY_SDK_PREFIX } from "../constants";
 

@@ -1,7 +1,8 @@
 import { SimpleLogger } from "./SimpleLogger";
-import { LoggerConfig, Logger } from "../types/Logger";
+import type { LoggerConfig, Logger } from "../types/Logger";
 
-export { LogLevel, LoggerConfig, Logger } from "../types/Logger";
+export { LogLevel } from "../types/Logger";
+export type { LoggerConfig, Logger } from "../types/Logger";
 
 // Global logger instance
 let globalLogger: Logger | null = null;

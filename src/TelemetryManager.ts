@@ -1,5 +1,6 @@
 import { HTTPExporter } from "./exporters";
 import { getLogger, setLogger, createLogger } from "./logger";
+import { CustomEventsPlugin } from "./plugins";
 import type {
   TelemetryConfig,
   TelemetryEvent,
@@ -23,6 +24,9 @@ export class TelemetryManager {
   private isProcessingQueue = false;
   private failedEvents: TelemetryEvent[] = [];
   private maxFailedEvents = 1000; // Prevent memory leaks from failed events
+  private sessionId!: string;
+  private userId?: string;
+  private customEventsPlugin?: CustomEventsPlugin;
 
   constructor(config: TelemetryConfig) {
     this.validateConfig(config);
@@ -33,12 +37,26 @@ export class TelemetryManager {
     this.retryDelay = config.retryDelay ?? 1000;
     this.samplingRate = config.samplingRate ?? 1.0;
 
+    // Initialize session ID
+    this.sessionId = config.sessionId ?? this.generateSessionId();
+
+    // Initialize user ID if provided
+    if (config.userId) {
+      this.userId = config.userId;
+    }
+
     // Initialize logger
     if (config.logging) {
       const customLogger = createLogger(config.logging);
       setLogger(customLogger);
     }
     this.logger = getLogger();
+
+    // Initialize custom events plugin if enabled
+    if (config.enableCustomEvents) {
+      this.customEventsPlugin = new CustomEventsPlugin();
+      this.register(this.customEventsPlugin);
+    }
 
     // Start periodic flush timer
     this.startFlushTimer();
@@ -95,12 +113,21 @@ export class TelemetryManager {
         return;
       }
 
+      // Add session and user context to the event
+      const enrichedEvent: TelemetryEvent = {
+        ...evt,
+        sessionId: this.sessionId,
+        ...(this.userId && { userId: this.userId }),
+      };
+
       // Add event to queue for proper ordering
-      this.eventQueue.push(evt);
+      this.eventQueue.push(enrichedEvent);
       this.logger.debug("Event queued", {
         eventType: evt.eventType,
         eventName: evt.eventName,
         queueSize: this.eventQueue.length,
+        sessionId: this.sessionId,
+        userId: this.userId,
       });
 
       // Process queue if not already processing
@@ -403,5 +430,66 @@ export class TelemetryManager {
    */
   getBufferedEventsCount(): number {
     return this.buffer.length;
+  }
+
+  /**
+   * Identify a user with the given user ID and optional traits
+   */
+  identify(userId: string, traits?: Record<string, unknown>): void {
+    try {
+      this.userId = userId;
+
+      const identifyEvent: TelemetryEvent = {
+        eventType: "identify",
+        eventName: "user_identified",
+        payload: {
+          userId,
+          traits: traits || {},
+        },
+        timestamp: new Date().toISOString(),
+        sessionId: this.sessionId,
+        userId: this.userId,
+      };
+
+      this.logger.info("User identified", {
+        userId,
+        traits: Object.keys(traits || {}),
+      });
+
+      this.capture(identifyEvent);
+    } catch (error) {
+      this.logger.error("Failed to identify user", {
+        userId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  /**
+   * Get the current session ID
+   */
+  getSessionId(): string {
+    return this.sessionId;
+  }
+
+  /**
+   * Get the current user ID
+   */
+  getUserId(): string | undefined {
+    return this.userId;
+  }
+
+  /**
+   * Get the custom events plugin for capturing custom events
+   */
+  getCustomEventsPlugin(): CustomEventsPlugin | undefined {
+    return this.customEventsPlugin;
+  }
+
+  /**
+   * Generate a unique session ID
+   */
+  private generateSessionId(): string {
+    return `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
   }
 }
