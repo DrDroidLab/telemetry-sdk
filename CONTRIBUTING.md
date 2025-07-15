@@ -65,14 +65,14 @@ Plugins extend the SDK's functionality. To create a new plugin:
 ### Example: Scroll Tracking Plugin
 
 ```typescript
-import { BasePlugin } from '../src/plugins/BasePlugin';
-import type { TelemetryEvent } from '../src/types';
+import { BasePlugin } from "../src/plugins/BasePlugin";
+import type { TelemetryEvent } from "../src/types";
 
 export class ScrollPlugin extends BasePlugin {
   private handler = () => {
     this.safeCapture({
-      eventType: 'interaction',
-      eventName: 'scroll',
+      eventType: "interaction",
+      eventName: "scroll",
       payload: {
         scrollY: window.scrollY,
         scrollX: window.scrollX,
@@ -82,13 +82,13 @@ export class ScrollPlugin extends BasePlugin {
   };
 
   protected setup(): void {
-    window.addEventListener('scroll', this.handler);
-    this.logger.info('ScrollPlugin setup complete');
+    window.addEventListener("scroll", this.handler);
+    this.logger.info("ScrollPlugin setup complete");
   }
 
   teardown(): void {
-    window.removeEventListener('scroll', this.handler);
-    this.logger.info('ScrollPlugin teardown complete');
+    window.removeEventListener("scroll", this.handler);
+    this.logger.info("ScrollPlugin teardown complete");
   }
 }
 ```
@@ -96,10 +96,10 @@ export class ScrollPlugin extends BasePlugin {
 **Register your plugin:**
 
 ```typescript
-import { initTelemetry } from 'telemetry-sdk';
-import { ScrollPlugin } from './src/plugins/ScrollPlugin';
+import { initTelemetry } from "telemetry-sdk";
+import { ScrollPlugin } from "./src/plugins/ScrollPlugin";
 
-const telemetry = initTelemetry({ endpoint: 'https://your-api.com/telemetry' });
+const telemetry = initTelemetry({ endpoint: "https://your-api.com/telemetry" });
 telemetry.register(new ScrollPlugin());
 ```
 

@@ -58,7 +58,7 @@ export class PerformancePlugin extends BasePlugin {
 
   private captureNavigationTiming(): PerformanceMetrics {
     const navigation = performance.getEntriesByType(
-      "navigation",
+      "navigation"
     )[0] as PerformanceNavigationTiming;
 
     if (!navigation) {
@@ -115,10 +115,10 @@ export class PerformancePlugin extends BasePlugin {
     type: string;
   }> {
     const resources = performance.getEntriesByType(
-      "resource",
+      "resource"
     ) as PerformanceResourceTiming[];
 
-    return resources.map((resource) => ({
+    return resources.map(resource => ({
       name: resource.name,
       duration: resource.duration,
       size: resource.transferSize || 0,
@@ -131,7 +131,7 @@ export class PerformancePlugin extends BasePlugin {
 
     // Time to First Byte
     const navigation = performance.getEntriesByType(
-      "navigation",
+      "navigation"
     )[0] as PerformanceNavigationTiming;
     if (navigation) {
       vitals.ttfb = navigation.responseStart - navigation.requestStart;
@@ -139,7 +139,7 @@ export class PerformancePlugin extends BasePlugin {
 
     // First Contentful Paint
     const fcpEntry = performance.getEntriesByName(
-      "first-contentful-paint",
+      "first-contentful-paint"
     )[0] as PerformanceEntry;
     if (fcpEntry) {
       vitals.fcp = fcpEntry.startTime;
@@ -286,7 +286,7 @@ export class PerformancePlugin extends BasePlugin {
       // Monitor for long tasks
       if ("PerformanceObserver" in window) {
         try {
-          const longTaskObserver = new PerformanceObserver((list) => {
+          const longTaskObserver = new PerformanceObserver(list => {
             list.getEntries().forEach(this.captureLongTask);
           });
           longTaskObserver.observe({ entryTypes: ["longtask"] });
@@ -298,7 +298,7 @@ export class PerformancePlugin extends BasePlugin {
 
         // Monitor for layout shifts
         try {
-          const layoutShiftObserver = new PerformanceObserver((list) => {
+          const layoutShiftObserver = new PerformanceObserver(list => {
             list.getEntries().forEach(this.captureLayoutShift);
           });
           layoutShiftObserver.observe({ entryTypes: ["layout-shift"] });

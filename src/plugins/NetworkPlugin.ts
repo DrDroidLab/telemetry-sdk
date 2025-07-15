@@ -44,7 +44,7 @@ export class NetworkPlugin extends BasePlugin {
     // Create the interceptor function
     const interceptor = async function (
       input: RequestInfo | URL,
-      init?: RequestInit,
+      init?: RequestInit
     ) {
       const startTime = performance.now();
       const url = typeof input === "string" ? input : input.toString();
@@ -105,12 +105,12 @@ export class NetworkPlugin extends BasePlugin {
     // Copy all properties from the original fetch to maintain compatibility
     Object.setPrototypeOf(
       interceptor,
-      Object.getPrototypeOf(this.originalFetch),
+      Object.getPrototypeOf(this.originalFetch)
     );
 
     // Copy all own properties
     const originalProperties = Object.getOwnPropertyDescriptors(
-      this.originalFetch,
+      this.originalFetch
     );
     Object.defineProperties(interceptor, originalProperties);
 
@@ -146,7 +146,7 @@ export class NetworkPlugin extends BasePlugin {
         url: string | URL,
         async?: boolean,
         user?: string | null,
-        password?: string | null,
+        password?: string | null
       ) {
         (this as any)._telemetryMethod = method;
         (this as any)._telemetryUrl =
@@ -157,12 +157,12 @@ export class NetworkPlugin extends BasePlugin {
           url,
           async ?? true,
           user,
-          password,
+          password
         );
       };
 
       XMLHttpRequest.prototype.send = function (
-        body?: Document | XMLHttpRequestBodyInit | null,
+        body?: Document | XMLHttpRequestBodyInit | null
       ) {
         const method = (this as any)._telemetryMethod;
         const url = (this as any)._telemetryUrl;
@@ -204,7 +204,7 @@ export class NetworkPlugin extends BasePlugin {
             if (originalOnReadyStateChange) {
               originalOnReadyStateChange.call(
                 this,
-                new Event("readystatechange"),
+                new Event("readystatechange")
               );
             }
           };

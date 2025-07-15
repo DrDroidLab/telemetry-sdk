@@ -31,7 +31,7 @@ setInterval(() => {
   const bufferedCount = telemetry.getBufferedEventsCount();
 
   console.log(
-    `Telemetry Status: Failed=${failedCount}, Queued=${queuedCount}, Buffered=${bufferedCount}`,
+    `Telemetry Status: Failed=${failedCount}, Queued=${queuedCount}, Buffered=${bufferedCount}`
   );
 }, 5000);
 

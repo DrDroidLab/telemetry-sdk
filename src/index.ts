@@ -10,7 +10,7 @@ import { initialTelemetryConfig } from "./utils/initialTelemetryConfig";
 export * from "./logger";
 
 export function initTelemetry(
-  userConfig: TelemetryConfig = initialTelemetryConfig,
+  userConfig: TelemetryConfig = initialTelemetryConfig
 ) {
   try {
     const manager = new TelemetryManager(userConfig);

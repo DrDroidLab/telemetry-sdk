@@ -29,11 +29,11 @@ pnpm add telemetry-sdk
 ### Basic Usage
 
 ```typescript
-import { initTelemetry } from 'telemetry-sdk';
+import { initTelemetry } from "telemetry-sdk";
 
 // Initialize with default configuration
 const telemetry = initTelemetry({
-  endpoint: 'https://your-api.com/telemetry',
+  endpoint: "https://your-api.com/telemetry",
   enableClicks: true,
   enableLogs: true,
   enableNetwork: true,
@@ -46,34 +46,34 @@ const telemetry = initTelemetry({
 ### Advanced Configuration
 
 ```typescript
-import { initTelemetry } from 'telemetry-sdk';
+import { initTelemetry } from "telemetry-sdk";
 
 const telemetry = initTelemetry({
-  endpoint: 'https://your-api.com/telemetry',
-  
+  endpoint: "https://your-api.com/telemetry",
+
   // Event batching configuration
-  batchSize: 50,           // Number of events to batch before sending
-  flushInterval: 30000,    // Flush interval in milliseconds (30 seconds)
-  
+  batchSize: 50, // Number of events to batch before sending
+  flushInterval: 30000, // Flush interval in milliseconds (30 seconds)
+
   // Retry configuration
-  maxRetries: 3,           // Maximum number of retry attempts
-  retryDelay: 1000,        // Delay between retries in milliseconds
-  
+  maxRetries: 3, // Maximum number of retry attempts
+  retryDelay: 1000, // Delay between retries in milliseconds
+
   // Sampling configuration
-  samplingRate: 0.1,       // Only capture 10% of events (0.0 to 1.0)
-  
+  samplingRate: 0.1, // Only capture 10% of events (0.0 to 1.0)
+
   // Plugin configuration
-  enableClicks: true,      // Track user clicks
-  enableLogs: true,        // Track console logs
-  enableNetwork: true,     // Track HTTP requests
+  enableClicks: true, // Track user clicks
+  enableLogs: true, // Track console logs
+  enableNetwork: true, // Track HTTP requests
   enablePerformance: true, // Track performance metrics
-  
+
   // Logging configuration
   logging: {
-    level: 'INFO',         // Log level: ERROR, WARN, INFO, DEBUG, SILENT
-    enableConsole: true,   // Enable console logging
+    level: "INFO", // Log level: ERROR, WARN, INFO, DEBUG, SILENT
+    enableConsole: true, // Enable console logging
     enableTimestamp: true, // Include timestamps in logs
-    prefix: '[MyApp]',     // Custom log prefix
+    prefix: "[MyApp]", // Custom log prefix
   },
 });
 ```
@@ -86,19 +86,19 @@ Initializes the telemetry SDK with the provided configuration.
 
 #### Configuration Options
 
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `endpoint` | `string` | `"https://httpbin.org/post"` | The endpoint URL to send telemetry data to |
-| `batchSize` | `number` | `50` | Number of events to batch before sending |
-| `flushInterval` | `number` | `30000` | Flush interval in milliseconds |
-| `maxRetries` | `number` | `3` | Maximum number of retry attempts |
-| `retryDelay` | `number` | `1000` | Delay between retries in milliseconds |
-| `samplingRate` | `number` | `1.0` | Sampling rate (0.0 to 1.0) |
-| `enableClicks` | `boolean` | `true` | Enable click event tracking |
-| `enableLogs` | `boolean` | `true` | Enable console log tracking |
-| `enableNetwork` | `boolean` | `true` | Enable network request tracking |
-| `enablePerformance` | `boolean` | `true` | Enable performance metrics tracking |
-| `logging` | `LoggerConfig` | `{}` | Logging configuration |
+| Option              | Type           | Default                      | Description                                |
+| ------------------- | -------------- | ---------------------------- | ------------------------------------------ |
+| `endpoint`          | `string`       | `"https://httpbin.org/post"` | The endpoint URL to send telemetry data to |
+| `batchSize`         | `number`       | `50`                         | Number of events to batch before sending   |
+| `flushInterval`     | `number`       | `30000`                      | Flush interval in milliseconds             |
+| `maxRetries`        | `number`       | `3`                          | Maximum number of retry attempts           |
+| `retryDelay`        | `number`       | `1000`                       | Delay between retries in milliseconds      |
+| `samplingRate`      | `number`       | `1.0`                        | Sampling rate (0.0 to 1.0)                 |
+| `enableClicks`      | `boolean`      | `true`                       | Enable click event tracking                |
+| `enableLogs`        | `boolean`      | `true`                       | Enable console log tracking                |
+| `enableNetwork`     | `boolean`      | `true`                       | Enable network request tracking            |
+| `enablePerformance` | `boolean`      | `true`                       | Enable performance metrics tracking        |
+| `logging`           | `LoggerConfig` | `{}`                         | Logging configuration                      |
 
 ### TelemetryManager Methods
 
@@ -108,12 +108,12 @@ Captures a custom telemetry event.
 
 ```typescript
 telemetry.capture({
-  eventType: 'custom',
-  eventName: 'user_action',
+  eventType: "custom",
+  eventName: "user_action",
   payload: {
-    action: 'button_click',
-    buttonId: 'submit-form',
-    userId: '12345',
+    action: "button_click",
+    buttonId: "submit-form",
+    userId: "12345",
   },
   timestamp: new Date().toISOString(),
 });
@@ -154,7 +154,9 @@ const failedCount = telemetry.getFailedEventsCount();
 const queuedCount = telemetry.getQueuedEventsCount();
 const bufferedCount = telemetry.getBufferedEventsCount();
 
-console.log(`Failed: ${failedCount}, Queued: ${queuedCount}, Buffered: ${bufferedCount}`);
+console.log(
+  `Failed: ${failedCount}, Queued: ${queuedCount}, Buffered: ${bufferedCount}`
+);
 ```
 
 ## 📊 Event Types
@@ -257,18 +259,18 @@ Collects performance metrics including Web Vitals.
 ### Creating Custom Plugins
 
 ```typescript
-import { BasePlugin } from 'telemetry-sdk';
+import { BasePlugin } from "telemetry-sdk";
 
 class CustomPlugin extends BasePlugin {
   protected setup(): void {
     // Your setup logic here
-    window.addEventListener('scroll', this.handleScroll.bind(this));
+    window.addEventListener("scroll", this.handleScroll.bind(this));
   }
 
   private handleScroll(event: Event): void {
     this.safeCapture({
-      eventType: 'interaction',
-      eventName: 'scroll',
+      eventType: "interaction",
+      eventName: "scroll",
       payload: {
         scrollY: window.scrollY,
         scrollX: window.scrollX,
@@ -279,7 +281,7 @@ class CustomPlugin extends BasePlugin {
 
   teardown(): void {
     // Cleanup logic
-    window.removeEventListener('scroll', this.handleScroll.bind(this));
+    window.removeEventListener("scroll", this.handleScroll.bind(this));
   }
 }
 

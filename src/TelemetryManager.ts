@@ -80,7 +80,7 @@ export class TelemetryManager {
           {
             eventType: evt.eventType,
             eventName: evt.eventName,
-          },
+          }
         );
         return;
       }
@@ -159,7 +159,7 @@ export class TelemetryManager {
       const batch = this.buffer.splice(0);
       this.logger.info("Flushing events", {
         eventCount: batch.length,
-        events: batch.map((e) => ({ type: e.eventType, name: e.eventName })),
+        events: batch.map(e => ({ type: e.eventType, name: e.eventName })),
       });
 
       let retries = 0;
@@ -182,8 +182,8 @@ export class TelemetryManager {
 
           if (retries <= this.maxRetries) {
             // Wait before retrying
-            await new Promise((resolve) =>
-              setTimeout(resolve, this.retryDelay * retries),
+            await new Promise(resolve =>
+              setTimeout(resolve, this.retryDelay * retries)
             );
           } else {
             // Re-add events to buffer on final failure
@@ -192,7 +192,7 @@ export class TelemetryManager {
               "Max retries exceeded, events returned to buffer",
               {
                 eventCount: batch.length,
-              },
+              }
             );
           }
         }

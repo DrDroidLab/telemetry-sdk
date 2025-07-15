@@ -116,10 +116,10 @@ setInterval(() => {
     memoryUsage: (performance as any).memory
       ? {
           used: Math.round(
-            (performance as any).memory.usedJSHeapSize / 1024 / 1024,
+            (performance as any).memory.usedJSHeapSize / 1024 / 1024
           ),
           total: Math.round(
-            (performance as any).memory.totalJSHeapSize / 1024 / 1024,
+            (performance as any).memory.totalJSHeapSize / 1024 / 1024
           ),
         }
       : "not available",
@@ -156,7 +156,7 @@ window.addEventListener("beforeunload", gracefulShutdown);
 window.addEventListener("pagehide", gracefulShutdown);
 
 // Handle unhandled errors
-window.addEventListener("error", (event) => {
+window.addEventListener("error", event => {
   telemetry.capture({
     eventType: "error",
     eventName: "unhandled_error",
@@ -172,7 +172,7 @@ window.addEventListener("error", (event) => {
 });
 
 // Handle unhandled promise rejections
-window.addEventListener("unhandledrejection", (event) => {
+window.addEventListener("unhandledrejection", event => {
   telemetry.capture({
     eventType: "error",
     eventName: "unhandled_promise_rejection",

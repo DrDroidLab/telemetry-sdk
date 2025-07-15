@@ -43,7 +43,7 @@ export abstract class BasePlugin implements TelemetryPlugin {
         {
           pluginName: this.constructor.name,
           eventType: event?.eventType,
-        },
+        }
       );
       return;
     }

@@ -21,7 +21,7 @@ export class LogPlugin extends BasePlugin {
 
     try {
       (["log", "info", "warn", "error", "debug"] as ConsoleMethod[]).forEach(
-        (method) => {
+        method => {
           this.originals[method] = console[method].bind(console);
 
           console[method] = (...args: any[]) => {
@@ -30,8 +30,8 @@ export class LogPlugin extends BasePlugin {
 
             // 2. check if this is our own SDK log to prevent infinite recursion
             const message = args
-              .map((arg) =>
-                typeof arg === "object" ? JSON.stringify(arg) : String(arg),
+              .map(arg =>
+                typeof arg === "object" ? JSON.stringify(arg) : String(arg)
               )
               .join(" ");
 
@@ -42,7 +42,7 @@ export class LogPlugin extends BasePlugin {
                 eventName: `console.${method}`,
                 payload: {
                   method,
-                  args: args.map((arg) => {
+                  args: args.map(arg => {
                     try {
                       return JSON.stringify(arg);
                     } catch {
@@ -55,7 +55,7 @@ export class LogPlugin extends BasePlugin {
               this.safeCapture(evt);
             }
           };
-        },
+        }
       );
 
       this.logger.info("LogPlugin setup complete");
@@ -69,7 +69,7 @@ export class LogPlugin extends BasePlugin {
 
   public teardown(): void {
     // Restore originals
-    (Object.keys(this.originals) as ConsoleMethod[]).forEach((method) => {
+    (Object.keys(this.originals) as ConsoleMethod[]).forEach(method => {
       if (this.originals[method]) {
         console[method] = this.originals[method]!;
       }
