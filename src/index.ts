@@ -1,5 +1,10 @@
 import { TelemetryManager } from "./TelemetryManager";
-import { ClickPlugin, LogPlugin, PerformancePlugin } from "./plugins";
+import {
+  ClickPlugin,
+  LogPlugin,
+  NetworkPlugin,
+  PerformancePlugin,
+} from "./plugins";
 import type { TelemetryConfig } from "./types";
 import { initialTelemetryConfig } from "./utils/initialTelemetryConfig";
 export * from "./logger";
@@ -17,13 +22,16 @@ export function initTelemetry(
     manager.register(new LogPlugin());
   }
 
+  if (typeof window !== "undefined" && userConfig.enableNetwork) {
+    manager.register(new NetworkPlugin());
+  }
+
   if (typeof window !== "undefined" && userConfig.enablePerformance) {
     manager.register(new PerformancePlugin());
   }
 
   // to add new, you can add:
   // if (config.enableScroll) manager.register(new ScrollPlugin())
-  // if (config.enableNetwork) manager.register(new NetworkPlugin())
 
   return manager;
 }

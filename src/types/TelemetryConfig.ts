@@ -4,6 +4,7 @@ export type TelemetryConfig = {
   endpoint: string;
   enableClicks?: boolean;
   enableLogs?: boolean;
+  enableNetwork?: boolean;
   enablePerformance?: boolean;
   batchSize?: number;
   flushInterval?: number;

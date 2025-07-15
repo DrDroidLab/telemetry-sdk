@@ -40,6 +40,7 @@ export class HTTPExporter implements TelemetryExporter {
       this.logger.error("HTTP export failed", {
         endpoint: this.endpoint,
         error: error instanceof Error ? error.message : String(error),
+        errorStack: error instanceof Error ? error.stack : undefined,
         eventCount: events.length,
       });
       throw error;
