@@ -10,14 +10,12 @@ import type {
 } from "./types";
 import { HTTPExporter } from "./exporters";
 import { getLogger, setLogger, createLogger } from "./logger";
-import {
-  BasePlugin,
-  ClickPlugin,
-  LogPlugin,
-  NetworkPlugin,
-  PerformancePlugin,
-  CustomEventsPlugin,
-} from "./plugins";
+import { BasePlugin } from "./plugins/BasePlugin";
+import { ClickPlugin } from "./plugins/ClickPlugin";
+import { LogPlugin } from "./plugins/LogPlugin";
+import { NetworkPlugin } from "./plugins/NetworkPlugin";
+import { PerformancePlugin } from "./plugins/PerformancePlugin";
+import { CustomEventsPlugin } from "./plugins/CustomEventsPlugin";
 import { initialTelemetryConfig } from "./utils/initialTelemetryConfig";
 
 export {
