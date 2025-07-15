@@ -2,7 +2,7 @@ import type { TelemetryConfig } from "../types/TelemetryConfig";
 
 export const initialTelemetryConfig: TelemetryConfig = {
   endpoint: "https://httpbin.org/post", // Using httpbin.org for testing - it accepts POST requests and returns the data
-  batchSize: 5,
+  batchSize: 50,
   enableClicks: true,
   enableLogs: true,
   enableNetwork: true,
