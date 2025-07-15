@@ -13,6 +13,7 @@ export class NetworkPlugin extends BasePlugin {
   private originalXHROpen: typeof XMLHttpRequest.prototype.open;
   private originalXHRSend: typeof XMLHttpRequest.prototype.send;
   private unregister: (() => void) | null = null;
+  private telemetryEndpoint: string = "";
 
   constructor() {
     super();
@@ -23,6 +24,8 @@ export class NetworkPlugin extends BasePlugin {
 
   initialize(manager: TelemetryManager) {
     super.initialize(manager);
+    // Extract endpoint from the manager's exporter
+    this.telemetryEndpoint = (manager as any).exporter?.endpoint || "";
   }
 
   private createFetchInterceptor() {
@@ -43,42 +46,48 @@ export class NetworkPlugin extends BasePlugin {
         const endTime = performance.now();
         const duration = endTime - startTime;
 
-        const evt: TelemetryEvent = {
-          eventType: "network",
-          eventName: "fetch",
-          payload: {
-            url,
-            method,
-            status: response.status,
-            statusText: response.statusText,
-            duration,
+        // Don't capture telemetry requests to prevent infinite loops
+        if (!self.telemetryEndpoint || !url.includes(self.telemetryEndpoint)) {
+          const evt: TelemetryEvent = {
+            eventType: "network",
+            eventName: "fetch",
+            payload: {
+              url,
+              method,
+              status: response.status,
+              statusText: response.statusText,
+              duration,
+              timestamp: new Date().toISOString(),
+              type: "fetch",
+            },
             timestamp: new Date().toISOString(),
-            type: "fetch",
-          },
-          timestamp: new Date().toISOString(),
-        };
+          };
 
-        self.manager.capture(evt);
+          self.manager.capture(evt);
+        }
         return response;
       } catch (error) {
         const endTime = performance.now();
         const duration = endTime - startTime;
 
-        const evt: TelemetryEvent = {
-          eventType: "network",
-          eventName: "fetch_error",
-          payload: {
-            url,
-            method,
-            error: error instanceof Error ? error.message : String(error),
-            duration,
+        // Don't capture telemetry request errors either
+        if (!self.telemetryEndpoint || !url.includes(self.telemetryEndpoint)) {
+          const evt: TelemetryEvent = {
+            eventType: "network",
+            eventName: "fetch_error",
+            payload: {
+              url,
+              method,
+              error: error instanceof Error ? error.message : String(error),
+              duration,
+              timestamp: new Date().toISOString(),
+              type: "fetch",
+            },
             timestamp: new Date().toISOString(),
-            type: "fetch",
-          },
-          timestamp: new Date().toISOString(),
-        };
+          };
 
-        self.manager.capture(evt);
+          self.manager.capture(evt);
+        }
         throw error;
       }
     };
@@ -150,22 +159,28 @@ export class NetworkPlugin extends BasePlugin {
             const endTime = performance.now();
             const duration = endTime - startTime;
 
-            const evt: TelemetryEvent = {
-              eventType: "network",
-              eventName: this.status >= 400 ? "xhr_error" : "xhr",
-              payload: {
-                url,
-                method,
-                status: this.status,
-                statusText: this.statusText,
-                duration,
+            // Don't capture telemetry requests to prevent infinite loops
+            if (
+              !self.telemetryEndpoint ||
+              !url.includes(self.telemetryEndpoint)
+            ) {
+              const evt: TelemetryEvent = {
+                eventType: "network",
+                eventName: this.status >= 400 ? "xhr_error" : "xhr",
+                payload: {
+                  url,
+                  method,
+                  status: this.status,
+                  statusText: this.statusText,
+                  duration,
+                  timestamp: new Date().toISOString(),
+                  type: "xhr",
+                },
                 timestamp: new Date().toISOString(),
-                type: "xhr",
-              },
-              timestamp: new Date().toISOString(),
-            };
+              };
 
-            self.manager.capture(evt);
+              self.manager.capture(evt);
+            }
           }
 
           if (originalOnReadyStateChange) {
