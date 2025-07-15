@@ -1,69 +1,39 @@
 import type { TelemetryManager } from "../TelemetryManager";
-import type { TelemetryPlugin } from "../types";
-import type { TelemetryEvent } from "../types/TelemetryEvent";
-
+import type { TelemetryEvent, Logger } from "../types";
 import { getLogger } from "../logger";
 
-export abstract class BasePlugin implements TelemetryPlugin {
+export abstract class BasePlugin {
   protected manager!: TelemetryManager;
-  protected logger = getLogger();
-  protected isInitialized = false;
+  protected logger: Logger;
   protected isEnabled = true;
 
-  initialize(manager: TelemetryManager) {
-    try {
-      this.manager = manager;
+  constructor() {
+    this.logger = getLogger();
+  }
+
+  initialize(manager: TelemetryManager): void {
+    this.manager = manager;
+    if (this.isSupported()) {
       this.setup();
-      this.isInitialized = true;
-      this.logger.debug("Plugin initialized successfully", {
+      this.logger.debug("Plugin initialized", {
         pluginName: this.constructor.name,
       });
-    } catch (error) {
-      this.logger.error("Failed to initialize plugin", {
+    } else {
+      this.logger.warn("Plugin not supported in this environment", {
         pluginName: this.constructor.name,
-        error: error instanceof Error ? error.message : String(error),
       });
       this.isEnabled = false;
-      throw error;
     }
   }
 
-  /** Override to register your listeners/patches */
+  protected abstract isSupported(): boolean;
   protected abstract setup(): void;
 
-  /** Override if you need to clean up event listeners */
-  teardown?(): void;
-
-  /**
-   * Safely capture an event with error handling
-   */
   protected safeCapture(event: TelemetryEvent): void {
-    if (!this.isEnabled || !this.isInitialized) {
-      this.logger.debug(
-        "Plugin not enabled or initialized, skipping event capture",
-        {
-          pluginName: this.constructor.name,
-          eventType: event?.eventType,
-        }
-      );
-      return;
-    }
-
-    try {
+    if (this.isEnabled && this.manager) {
       this.manager.capture(event);
-    } catch (error) {
-      this.logger.error("Failed to capture event in plugin", {
-        pluginName: this.constructor.name,
-        eventType: event?.eventType,
-        error: error instanceof Error ? error.message : String(error),
-      });
     }
   }
 
-  /**
-   * Check if the plugin is supported in the current environment
-   */
-  protected isSupported(): boolean {
-    return true; // Override in subclasses for environment-specific checks
-  }
+  teardown?(): void;
 }

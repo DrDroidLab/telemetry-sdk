@@ -2,6 +2,10 @@ import { BasePlugin } from "./BasePlugin";
 import type { TelemetryEvent } from "../types";
 
 export class CustomEventsPlugin extends BasePlugin {
+  protected isSupported(): boolean {
+    return true; // Custom events are always supported
+  }
+
   /**
    * Capture a custom event with the specified type, name, and payload
    */
