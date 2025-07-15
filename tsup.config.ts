@@ -6,4 +6,10 @@ export default defineConfig({
   dts: true,
   clean: true,
   sourcemap: true,
+  minify: true,
+  treeshake: true,
+  splitting: false,
+  target: "es2020",
+  outDir: "dist",
+  onSuccess: "echo 'Build completed successfully!'",
 });
