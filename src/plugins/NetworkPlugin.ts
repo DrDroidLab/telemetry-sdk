@@ -8,19 +8,28 @@ if (typeof window !== "undefined" && !(window as any)._originalFetch) {
 }
 
 export class NetworkPlugin extends BasePlugin {
-  private logger = getLogger();
-  private originalFetch: typeof fetch;
-  private originalXHROpen: typeof XMLHttpRequest.prototype.open;
-  private originalXHRSend: typeof XMLHttpRequest.prototype.send;
+  private originalFetch!: typeof fetch;
+  private originalXHROpen!: typeof XMLHttpRequest.prototype.open;
+  private originalXHRSend!: typeof XMLHttpRequest.prototype.send;
   private unregister: (() => void) | null = null;
   private telemetryEndpoint: string = "";
   private xhrHandlers = new WeakMap<XMLHttpRequest, () => void>();
 
+  protected isSupported(): boolean {
+    return (
+      typeof window !== "undefined" &&
+      typeof fetch !== "undefined" &&
+      typeof XMLHttpRequest !== "undefined"
+    );
+  }
+
   constructor() {
     super();
-    this.originalFetch = (window as any)._originalFetch || window.fetch;
-    this.originalXHROpen = XMLHttpRequest.prototype.open;
-    this.originalXHRSend = XMLHttpRequest.prototype.send;
+    if (this.isSupported()) {
+      this.originalFetch = (window as any)._originalFetch || window.fetch;
+      this.originalXHROpen = XMLHttpRequest.prototype.open;
+      this.originalXHRSend = XMLHttpRequest.prototype.send;
+    }
   }
 
   initialize(manager: TelemetryManager) {
@@ -64,7 +73,7 @@ export class NetworkPlugin extends BasePlugin {
             timestamp: new Date().toISOString(),
           };
 
-          self.manager.capture(evt);
+          self.safeCapture(evt);
         }
         return response;
       } catch (error) {
@@ -87,7 +96,7 @@ export class NetworkPlugin extends BasePlugin {
             timestamp: new Date().toISOString(),
           };
 
-          self.manager.capture(evt);
+          self.safeCapture(evt);
         }
         throw error;
       }
@@ -117,91 +126,104 @@ export class NetworkPlugin extends BasePlugin {
   }
 
   protected setup(): void {
-    // Set up fetch interceptor
-    this.unregister = this.createFetchInterceptor();
+    if (!this.isSupported()) {
+      this.logger.warn("NetworkPlugin not supported in this environment");
+      this.isEnabled = false;
+      return;
+    }
 
-    // Patch XMLHttpRequest
-    const originalOpen = XMLHttpRequest.prototype.open;
-    const originalSend = XMLHttpRequest.prototype.send;
-    const self = this;
+    try {
+      // Set up fetch interceptor
+      this.unregister = this.createFetchInterceptor();
 
-    XMLHttpRequest.prototype.open = function (
-      method: string,
-      url: string | URL,
-      async?: boolean,
-      user?: string | null,
-      password?: string | null,
-    ) {
-      (this as any)._telemetryMethod = method;
-      (this as any)._telemetryUrl =
-        typeof url === "string" ? url : url.toString();
-      return originalOpen.call(
-        this,
-        method,
-        url,
-        async ?? true,
-        user,
-        password,
-      );
-    };
+      // Patch XMLHttpRequest
+      const originalOpen = XMLHttpRequest.prototype.open;
+      const originalSend = XMLHttpRequest.prototype.send;
+      const self = this;
 
-    XMLHttpRequest.prototype.send = function (
-      body?: Document | XMLHttpRequestBodyInit | null,
-    ) {
-      const method = (this as any)._telemetryMethod;
-      const url = (this as any)._telemetryUrl;
+      XMLHttpRequest.prototype.open = function (
+        method: string,
+        url: string | URL,
+        async?: boolean,
+        user?: string | null,
+        password?: string | null,
+      ) {
+        (this as any)._telemetryMethod = method;
+        (this as any)._telemetryUrl =
+          typeof url === "string" ? url : url.toString();
+        return originalOpen.call(
+          this,
+          method,
+          url,
+          async ?? true,
+          user,
+          password,
+        );
+      };
 
-      if (method && url) {
-        const startTime = performance.now();
-        const originalOnReadyStateChange = this.onreadystatechange;
+      XMLHttpRequest.prototype.send = function (
+        body?: Document | XMLHttpRequestBodyInit | null,
+      ) {
+        const method = (this as any)._telemetryMethod;
+        const url = (this as any)._telemetryUrl;
 
-        // Create a handler that doesn't capture references to avoid memory leaks
-        const handler = function (this: XMLHttpRequest) {
-          if (this.readyState === XMLHttpRequest.DONE) {
-            const endTime = performance.now();
-            const duration = endTime - startTime;
+        if (method && url) {
+          const startTime = performance.now();
+          const originalOnReadyStateChange = this.onreadystatechange;
 
-            // Don't capture telemetry requests to prevent infinite loops
-            if (
-              !self.telemetryEndpoint ||
-              !url.includes(self.telemetryEndpoint)
-            ) {
-              const evt: TelemetryEvent = {
-                eventType: "network",
-                eventName: this.status >= 400 ? "xhr_error" : "xhr",
-                payload: {
-                  url,
-                  method,
-                  status: this.status,
-                  statusText: this.statusText,
-                  duration,
+          // Create a handler that doesn't capture references to avoid memory leaks
+          const handler = function (this: XMLHttpRequest) {
+            if (this.readyState === XMLHttpRequest.DONE) {
+              const endTime = performance.now();
+              const duration = endTime - startTime;
+
+              // Don't capture telemetry requests to prevent infinite loops
+              if (
+                !self.telemetryEndpoint ||
+                !url.includes(self.telemetryEndpoint)
+              ) {
+                const evt: TelemetryEvent = {
+                  eventType: "network",
+                  eventName: this.status >= 400 ? "xhr_error" : "xhr",
+                  payload: {
+                    url,
+                    method,
+                    status: this.status,
+                    statusText: this.statusText,
+                    duration,
+                    timestamp: new Date().toISOString(),
+                    type: "xhr",
+                  },
                   timestamp: new Date().toISOString(),
-                  type: "xhr",
-                },
-                timestamp: new Date().toISOString(),
-              };
+                };
 
-              self.manager.capture(evt);
+                self.safeCapture(evt);
+              }
             }
-          }
 
-          if (originalOnReadyStateChange) {
-            originalOnReadyStateChange.call(
-              this,
-              new Event("readystatechange"),
-            );
-          }
-        };
+            if (originalOnReadyStateChange) {
+              originalOnReadyStateChange.call(
+                this,
+                new Event("readystatechange"),
+              );
+            }
+          };
 
-        // Store the handler reference for cleanup
-        self.xhrHandlers.set(this, handler);
-        this.onreadystatechange = handler;
-      }
+          // Store the handler reference for cleanup
+          self.xhrHandlers.set(this, handler);
+          this.onreadystatechange = handler;
+        }
 
-      return originalSend.call(this, body);
-    };
+        return originalSend.call(this, body);
+      };
 
-    this.logger.info("NetworkPlugin setup complete");
+      this.logger.info("NetworkPlugin setup complete");
+    } catch (error) {
+      this.logger.error("Failed to setup NetworkPlugin", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      this.isEnabled = false;
+    }
   }
 
   teardown(): void {

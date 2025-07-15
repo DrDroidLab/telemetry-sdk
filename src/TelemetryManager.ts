@@ -19,6 +19,10 @@ export class TelemetryManager {
   private samplingRate: number;
   private flushTimer?: NodeJS.Timeout;
   private logger: Logger;
+  private eventQueue: TelemetryEvent[] = [];
+  private isProcessingQueue = false;
+  private failedEvents: TelemetryEvent[] = [];
+  private maxFailedEvents = 1000; // Prevent memory leaks from failed events
 
   constructor(config: TelemetryConfig) {
     this.validateConfig(config);
@@ -51,46 +55,73 @@ export class TelemetryManager {
   }
 
   register(plugin: TelemetryPlugin) {
-    this.plugins.push(plugin);
-    plugin.initialize(this);
-    this.logger.debug("Plugin registered", {
-      pluginName: plugin.constructor.name,
-      totalPlugins: this.plugins.length,
-    });
+    try {
+      this.plugins.push(plugin);
+      plugin.initialize(this);
+      this.logger.debug("Plugin registered", {
+        pluginName: plugin.constructor.name,
+        totalPlugins: this.plugins.length,
+      });
+    } catch (error) {
+      this.logger.error("Failed to register plugin", {
+        pluginName: plugin.constructor.name,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      // Remove the plugin from the array if initialization failed
+      this.plugins.pop();
+    }
   }
 
   capture(evt: TelemetryEvent) {
-    if (this.isShutdown) {
-      this.logger.warn("Cannot capture event - TelemetryManager is shutdown", {
+    try {
+      if (this.isShutdown) {
+        this.logger.warn(
+          "Cannot capture event - TelemetryManager is shutdown",
+          {
+            eventType: evt.eventType,
+            eventName: evt.eventName,
+          },
+        );
+        return;
+      }
+
+      // Apply sampling
+      if (Math.random() > this.samplingRate) {
+        this.logger.debug("Event dropped due to sampling", {
+          eventType: evt.eventType,
+          eventName: evt.eventName,
+          samplingRate: this.samplingRate,
+        });
+        return;
+      }
+
+      // Add event to queue for proper ordering
+      this.eventQueue.push(evt);
+      this.logger.debug("Event queued", {
         eventType: evt.eventType,
         eventName: evt.eventName,
+        queueSize: this.eventQueue.length,
       });
-      return;
-    }
 
-    // Apply sampling
-    if (Math.random() > this.samplingRate) {
-      this.logger.debug("Event dropped due to sampling", {
+      // Process queue if not already processing
+      if (!this.isProcessingQueue) {
+        this.processEventQueue();
+      }
+
+      // Check if we should flush
+      if (this.buffer.length >= this.batchSize) {
+        this.logger.info("Buffer full, triggering flush", {
+          bufferSize: this.buffer.length,
+          batchSize: this.batchSize,
+        });
+        this.flush();
+      }
+    } catch (error) {
+      this.logger.error("Failed to capture event", {
         eventType: evt.eventType,
         eventName: evt.eventName,
-        samplingRate: this.samplingRate,
+        error: error instanceof Error ? error.message : String(error),
       });
-      return;
-    }
-
-    this.buffer.push(evt);
-    this.logger.debug("Event captured", {
-      eventType: evt.eventType,
-      eventName: evt.eventName,
-      bufferSize: this.buffer.length,
-    });
-
-    if (this.buffer.length >= this.batchSize) {
-      this.logger.info("Buffer full, triggering flush", {
-        bufferSize: this.buffer.length,
-        batchSize: this.batchSize,
-      });
-      this.flush();
     }
   }
 
@@ -275,5 +306,102 @@ export class TelemetryManager {
     if (config.retryDelay !== undefined && config.retryDelay < 0) {
       throw new Error("Retry delay must be non-negative");
     }
+  }
+
+  private async processEventQueue(): Promise<void> {
+    if (this.isProcessingQueue || this.eventQueue.length === 0) {
+      return;
+    }
+
+    this.isProcessingQueue = true;
+
+    try {
+      while (this.eventQueue.length > 0) {
+        const event = this.eventQueue.shift()!;
+
+        // Add to buffer for batching
+        this.buffer.push(event);
+
+        this.logger.debug("Event processed and added to buffer", {
+          eventType: event.eventType,
+          eventName: event.eventName,
+          bufferSize: this.buffer.length,
+        });
+      }
+    } catch (error) {
+      this.logger.error("Failed to process event queue", {
+        error: error instanceof Error ? error.message : String(error),
+        queueSize: this.eventQueue.length,
+      });
+    } finally {
+      this.isProcessingQueue = false;
+    }
+  }
+
+  private handleFailedEvent(event: TelemetryEvent, error: unknown): void {
+    // Add to failed events list for potential retry
+    this.failedEvents.push(event);
+
+    // Prevent memory leaks by limiting failed events
+    if (this.failedEvents.length > this.maxFailedEvents) {
+      const removed = this.failedEvents.shift();
+      this.logger.warn("Removed old failed event to prevent memory leak", {
+        eventType: removed?.eventType,
+        eventName: removed?.eventName,
+      });
+    }
+
+    this.logger.error("Event processing failed", {
+      eventType: event.eventType,
+      eventName: event.eventName,
+      error: error instanceof Error ? error.message : String(error),
+      failedEventsCount: this.failedEvents.length,
+    });
+  }
+
+  /**
+   * Retry failed events (useful for recovery scenarios)
+   */
+  async retryFailedEvents(): Promise<void> {
+    if (this.failedEvents.length === 0) {
+      this.logger.debug("No failed events to retry");
+      return;
+    }
+
+    this.logger.info("Retrying failed events", {
+      count: this.failedEvents.length,
+    });
+
+    const eventsToRetry = [...this.failedEvents];
+    this.failedEvents = [];
+
+    for (const event of eventsToRetry) {
+      try {
+        this.capture(event);
+      } catch (error) {
+        this.handleFailedEvent(event, error);
+      }
+    }
+  }
+
+  /**
+   * Get the count of failed events
+   */
+  getFailedEventsCount(): number {
+    return this.failedEvents.length;
+  }
+
+  /**
+   * Get the count of queued events
+   */
+  getQueuedEventsCount(): number {
+    return this.eventQueue.length;
+  }
+
+  /**
+   * Get the count of buffered events
+   */
+  getBufferedEventsCount(): number {
+    return this.buffer.length;
   }
 }

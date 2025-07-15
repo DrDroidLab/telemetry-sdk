@@ -54,7 +54,6 @@ interface PerformanceMetrics {
 }
 
 export class PerformancePlugin extends BasePlugin {
-  private logger = getLogger();
   private hasCapturedInitialMetrics = false;
 
   private captureNavigationTiming(): PerformanceMetrics {
@@ -162,6 +161,14 @@ export class PerformancePlugin extends BasePlugin {
     return vitals;
   }
 
+  protected isSupported(): boolean {
+    return (
+      typeof window !== "undefined" &&
+      typeof performance !== "undefined" &&
+      typeof document !== "undefined"
+    );
+  }
+
   private capturePerformanceMetrics = async () => {
     try {
       // Wait for page to be fully loaded
@@ -201,83 +208,114 @@ export class PerformancePlugin extends BasePlugin {
         ttfb: allMetrics.ttfb,
       });
 
-      this.manager.capture(evt);
+      this.safeCapture(evt);
     } catch (error) {
-      this.logger.error("Failed to capture performance metrics", error);
+      this.logger.error("Failed to capture performance metrics", {
+        error: error instanceof Error ? error.message : String(error),
+      });
     }
   };
 
   private captureLongTask = (entry: PerformanceEntry) => {
-    const evt: TelemetryEvent = {
-      eventType: "performance",
-      eventName: "long_task",
-      payload: {
+    try {
+      const evt: TelemetryEvent = {
+        eventType: "performance",
+        eventName: "long_task",
+        payload: {
+          duration: entry.duration,
+          startTime: entry.startTime,
+          name: entry.name,
+        },
+        timestamp: new Date().toISOString(),
+      };
+
+      this.logger.debug("Long task detected", {
         duration: entry.duration,
-        startTime: entry.startTime,
         name: entry.name,
-      },
-      timestamp: new Date().toISOString(),
-    };
+      });
 
-    this.logger.debug("Long task detected", {
-      duration: entry.duration,
-      name: entry.name,
-    });
-
-    this.manager.capture(evt);
+      this.safeCapture(evt);
+    } catch (error) {
+      this.logger.error("Failed to capture long task", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
   };
 
   private captureLayoutShift = (entry: PerformanceEntry) => {
-    const layoutShiftEntry = entry as any;
-    const evt: TelemetryEvent = {
-      eventType: "performance",
-      eventName: "layout_shift",
-      payload: {
+    try {
+      const layoutShiftEntry = entry as any;
+      const evt: TelemetryEvent = {
+        eventType: "performance",
+        eventName: "layout_shift",
+        payload: {
+          value: layoutShiftEntry.value,
+          sources: layoutShiftEntry.sources,
+          startTime: layoutShiftEntry.startTime,
+        },
+        timestamp: new Date().toISOString(),
+      };
+
+      this.logger.debug("Layout shift detected", {
         value: layoutShiftEntry.value,
-        sources: layoutShiftEntry.sources,
-        startTime: layoutShiftEntry.startTime,
-      },
-      timestamp: new Date().toISOString(),
-    };
+      });
 
-    this.logger.debug("Layout shift detected", {
-      value: layoutShiftEntry.value,
-    });
-
-    this.manager.capture(evt);
+      this.safeCapture(evt);
+    } catch (error) {
+      this.logger.error("Failed to capture layout shift", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
   };
 
   protected setup(): void {
-    // Capture initial page load metrics
-    if (document.readyState === "complete") {
-      this.capturePerformanceMetrics();
-    } else {
-      window.addEventListener("load", this.capturePerformanceMetrics);
+    if (!this.isSupported()) {
+      this.logger.warn("PerformancePlugin not supported in this environment");
+      this.isEnabled = false;
+      return;
     }
 
-    // Monitor for long tasks
-    if ("PerformanceObserver" in window) {
-      try {
-        const longTaskObserver = new PerformanceObserver((list) => {
-          list.getEntries().forEach(this.captureLongTask);
-        });
-        longTaskObserver.observe({ entryTypes: ["longtask"] });
-      } catch (error) {
-        this.logger.warn("Long task monitoring not supported", error);
+    try {
+      // Capture initial page load metrics
+      if (document.readyState === "complete") {
+        this.capturePerformanceMetrics();
+      } else {
+        window.addEventListener("load", this.capturePerformanceMetrics);
       }
 
-      // Monitor for layout shifts
-      try {
-        const layoutShiftObserver = new PerformanceObserver((list) => {
-          list.getEntries().forEach(this.captureLayoutShift);
-        });
-        layoutShiftObserver.observe({ entryTypes: ["layout-shift"] });
-      } catch (error) {
-        this.logger.warn("Layout shift monitoring not supported", error);
+      // Monitor for long tasks
+      if ("PerformanceObserver" in window) {
+        try {
+          const longTaskObserver = new PerformanceObserver((list) => {
+            list.getEntries().forEach(this.captureLongTask);
+          });
+          longTaskObserver.observe({ entryTypes: ["longtask"] });
+        } catch (error) {
+          this.logger.warn("Long task monitoring not supported", {
+            error: error instanceof Error ? error.message : String(error),
+          });
+        }
+
+        // Monitor for layout shifts
+        try {
+          const layoutShiftObserver = new PerformanceObserver((list) => {
+            list.getEntries().forEach(this.captureLayoutShift);
+          });
+          layoutShiftObserver.observe({ entryTypes: ["layout-shift"] });
+        } catch (error) {
+          this.logger.warn("Layout shift monitoring not supported", {
+            error: error instanceof Error ? error.message : String(error),
+          });
+        }
       }
+
+      this.logger.info("PerformancePlugin setup complete");
+    } catch (error) {
+      this.logger.error("Failed to setup PerformancePlugin", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      this.isEnabled = false;
     }
-
-    this.logger.info("PerformancePlugin setup complete");
   }
 
   teardown(): void {
