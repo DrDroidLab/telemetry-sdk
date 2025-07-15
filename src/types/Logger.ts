@@ -11,14 +11,18 @@ export interface LoggerConfig {
   enableConsole?: boolean;
   enableTimestamp?: boolean;
   prefix?: string;
-  formatter?: (level: LogLevel, message: string, meta?: any) => string;
+  formatter?: (
+    level: LogLevel,
+    message: string,
+    meta?: Record<string, unknown>
+  ) => string;
 }
 
 export interface Logger {
-  error(message: string, meta?: any): void;
-  warn(message: string, meta?: any): void;
-  info(message: string, meta?: any): void;
-  debug(message: string, meta?: any): void;
+  error(message: string, meta?: Record<string, unknown>): void;
+  warn(message: string, meta?: Record<string, unknown>): void;
+  info(message: string, meta?: Record<string, unknown>): void;
+  debug(message: string, meta?: Record<string, unknown>): void;
   setLevel(level: LogLevel): void;
   setConfig(config: Partial<LoggerConfig>): void;
 }

@@ -11,11 +11,12 @@ A lightweight, configurable telemetry tracking library for JavaScript/TypeScript
 - **Environment Detection**: Automatic detection of browser vs Node.js environments
 - **Performance Monitoring**: Built-in performance metrics collection
 - **Network Monitoring**: Automatic HTTP request tracking
-- **Console Logging**: Intercepts and tracks console logs
+- **Console Logging**: Intercepts and tracks console logs with XSS protection
 - **User Interactions**: Captures click events and user interactions
 - **User Identification**: Track user identity with traits and session management
 - **Custom Events**: Capture user-defined events with flexible payloads
 - **Session Tracking**: Automatic session ID generation and tracking
+- **Input Validation**: Comprehensive validation and sanitization of all user data
 
 ## 📦 Installation
 
@@ -77,6 +78,7 @@ const telemetry = initTelemetry({
   enableLogs: true, // Track console logs
   enableNetwork: true, // Track HTTP requests
   enablePerformance: true, // Track performance metrics
+  enableCustomEvents: true, // Enable custom events plugin
 
   // Logging configuration
   logging: {

@@ -1,12 +1,13 @@
 import type { TelemetryConfig } from "../types/TelemetryConfig";
 
 export const initialTelemetryConfig: TelemetryConfig = {
-  endpoint: "https://httpbin.org/post", // Using httpbin.org for testing - it accepts POST requests and returns the data
+  endpoint: "https://api.your-domain.com/telemetry", // Replace with your actual telemetry endpoint
   batchSize: 50,
   enableClicks: true,
   enableLogs: true,
   enableNetwork: true,
   enablePerformance: true,
+  enableCustomEvents: false, // Disabled by default
   flushInterval: 10000,
   maxRetries: 3,
   retryDelay: 1000,

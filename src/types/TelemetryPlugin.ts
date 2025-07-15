@@ -1,4 +1,4 @@
-import { TelemetryManager } from "../TelemetryManager";
+import type { TelemetryManager } from "../TelemetryManager";
 
 export type TelemetryPlugin = {
   /** Called once, passing in the manager to call `.capture(...)` on */

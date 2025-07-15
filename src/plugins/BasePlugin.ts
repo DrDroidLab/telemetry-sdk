@@ -1,5 +1,6 @@
 import type { TelemetryManager } from "../TelemetryManager";
 import type { TelemetryPlugin } from "../types";
+import type { TelemetryEvent } from "../types/TelemetryEvent";
 
 import { getLogger } from "../logger";
 
@@ -36,7 +37,7 @@ export abstract class BasePlugin implements TelemetryPlugin {
   /**
    * Safely capture an event with error handling
    */
-  protected safeCapture(event: any): void {
+  protected safeCapture(event: TelemetryEvent): void {
     if (!this.isEnabled || !this.isInitialized) {
       this.logger.debug(
         "Plugin not enabled or initialized, skipping event capture",

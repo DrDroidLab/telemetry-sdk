@@ -11,11 +11,16 @@ export class CustomEventsPlugin extends BasePlugin {
     payload: T
   ): void {
     try {
+      const userId = this.manager.getUserId();
+      const sessionId = this.manager.getSessionId();
+
       const event: TelemetryEvent<T> = {
         eventType,
         eventName,
         payload,
         timestamp: new Date().toISOString(),
+        ...(sessionId && { sessionId }),
+        ...(userId && { userId }),
       };
 
       this.logger.debug("Custom event captured", {
@@ -24,7 +29,7 @@ export class CustomEventsPlugin extends BasePlugin {
         payloadKeys: Object.keys(payload as Record<string, unknown>),
       });
 
-      this.safeCapture(event);
+      this.safeCapture(event as TelemetryEvent);
     } catch (error) {
       this.logger.error("Failed to capture custom event", {
         eventType,
@@ -45,7 +50,7 @@ export class CustomEventsPlugin extends BasePlugin {
         payloadKeys: Object.keys(event.payload as Record<string, unknown>),
       });
 
-      this.safeCapture(event);
+      this.safeCapture(event as TelemetryEvent);
     } catch (error) {
       this.logger.error("Failed to capture custom event", {
         eventType: event.eventType,

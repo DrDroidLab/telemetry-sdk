@@ -2,8 +2,11 @@ import { BasePlugin } from "./BasePlugin";
 import type { TelemetryEvent } from "../types";
 import type { TelemetryManager } from "../TelemetryManager";
 
-if (typeof window !== "undefined" && !(window as any)._originalFetch) {
-  (window as any)._originalFetch = window.fetch;
+if (
+  typeof window !== "undefined" &&
+  !(window as unknown as Record<string, unknown>)._originalFetch
+) {
+  (window as unknown as Record<string, unknown>)._originalFetch = window.fetch;
 }
 
 export class NetworkPlugin extends BasePlugin {
@@ -13,6 +16,7 @@ export class NetworkPlugin extends BasePlugin {
   private unregister: (() => void) | null = null;
   private telemetryEndpoint: string = "";
   private xhrHandlers = new WeakMap<XMLHttpRequest, () => void>();
+  private patchedXHRs = new Set<XMLHttpRequest>();
 
   protected isSupported(): boolean {
     return (
@@ -25,38 +29,68 @@ export class NetworkPlugin extends BasePlugin {
   constructor() {
     super();
     if (this.isSupported()) {
-      this.originalFetch = (window as any)._originalFetch || window.fetch;
-      this.originalXHROpen = XMLHttpRequest.prototype.open;
-      this.originalXHRSend = XMLHttpRequest.prototype.send;
+      this.originalFetch =
+        ((window as unknown as Record<string, unknown>)
+          ._originalFetch as typeof fetch) || window.fetch;
+      this.originalXHROpen = function (
+        this: XMLHttpRequest,
+        method: string,
+        url: string | URL,
+        async?: boolean,
+        user?: string | null,
+        password?: string | null
+      ) {
+        return XMLHttpRequest.prototype.open.call(
+          this,
+          method,
+          url,
+          async === undefined ? true : async,
+          user,
+          password
+        );
+      };
+      this.originalXHRSend = function (
+        this: XMLHttpRequest,
+        body?: Document | XMLHttpRequestBodyInit | null
+      ) {
+        return XMLHttpRequest.prototype.send.call(this, body);
+      };
     }
   }
 
   initialize(manager: TelemetryManager) {
     super.initialize(manager);
-    // Extract endpoint from the manager's exporter
-    this.telemetryEndpoint = (manager as any).exporter?.endpoint || "";
+    // Get endpoint from manager's getEndpoint method
+    this.telemetryEndpoint = manager.getEndpoint();
   }
 
   private createFetchInterceptor() {
-    const self = this;
-
-    // Create the interceptor function
-    const interceptor = async function (
+    // Create the interceptor function using arrow function to preserve context
+    const interceptor = async (
       input: RequestInfo | URL,
       init?: RequestInit
-    ) {
+    ) => {
       const startTime = performance.now();
-      const url = typeof input === "string" ? input : input.toString();
+      let url: string;
+      if (typeof input === "string") {
+        url = input;
+      } else if (input instanceof URL) {
+        url = input.toString();
+      } else if (typeof (input as { url?: string }).url === "string") {
+        url = (input as { url: string }).url;
+      } else {
+        url = JSON.stringify(input);
+      }
       const method = init?.method || "GET";
 
       try {
         // Call the original fetch with proper context
-        const response = await self.originalFetch.call(window, input, init);
+        const response = await this.originalFetch.call(window, input, init);
         const endTime = performance.now();
         const duration = endTime - startTime;
 
         // Don't capture telemetry requests to prevent infinite loops
-        if (!self.telemetryEndpoint || !url.includes(self.telemetryEndpoint)) {
+        if (!this.telemetryEndpoint || !url.includes(this.telemetryEndpoint)) {
           const evt: TelemetryEvent = {
             eventType: "network",
             eventName: "fetch",
@@ -72,7 +106,7 @@ export class NetworkPlugin extends BasePlugin {
             timestamp: new Date().toISOString(),
           };
 
-          self.safeCapture(evt);
+          this.safeCapture(evt);
         }
         return response;
       } catch (error) {
@@ -80,7 +114,7 @@ export class NetworkPlugin extends BasePlugin {
         const duration = endTime - startTime;
 
         // Don't capture telemetry request errors either
-        if (!self.telemetryEndpoint || !url.includes(self.telemetryEndpoint)) {
+        if (!this.telemetryEndpoint || !url.includes(this.telemetryEndpoint)) {
           const evt: TelemetryEvent = {
             eventType: "network",
             eventName: "fetch_error",
@@ -95,7 +129,7 @@ export class NetworkPlugin extends BasePlugin {
             timestamp: new Date().toISOString(),
           };
 
-          self.safeCapture(evt);
+          this.safeCapture(evt);
         }
         throw error;
       }
@@ -104,7 +138,7 @@ export class NetworkPlugin extends BasePlugin {
     // Copy all properties from the original fetch to maintain compatibility
     Object.setPrototypeOf(
       interceptor,
-      Object.getPrototypeOf(this.originalFetch)
+      Object.getPrototypeOf(this.originalFetch) as typeof fetch
     );
 
     // Copy all own properties
@@ -118,8 +152,9 @@ export class NetworkPlugin extends BasePlugin {
 
     // Return unregister function
     return () => {
-      if ((window as any)._originalFetch) {
-        window.fetch = (window as any)._originalFetch;
+      if ((window as unknown as Record<string, unknown>)._originalFetch) {
+        window.fetch = (window as unknown as Record<string, unknown>)
+          ._originalFetch as typeof fetch;
       }
     };
   }
@@ -136,85 +171,88 @@ export class NetworkPlugin extends BasePlugin {
       this.unregister = this.createFetchInterceptor();
 
       // Patch XMLHttpRequest
-      const originalOpen = XMLHttpRequest.prototype.open;
-      const originalSend = XMLHttpRequest.prototype.send;
-      const self = this;
+      const originalOpen = (...args: Parameters<XMLHttpRequest["open"]>) =>
+        XMLHttpRequest.prototype.open.apply(this, args);
+      const originalSend = (...args: Parameters<XMLHttpRequest["send"]>) =>
+        XMLHttpRequest.prototype.send.apply(this, args);
 
-      XMLHttpRequest.prototype.open = function (
-        method: string,
-        url: string | URL,
-        async?: boolean,
-        user?: string | null,
-        password?: string | null
-      ) {
-        (this as any)._telemetryMethod = method;
-        (this as any)._telemetryUrl =
-          typeof url === "string" ? url : url.toString();
-        return originalOpen.call(
-          this,
-          method,
-          url,
-          async ?? true,
-          user,
-          password
-        );
-      };
+      XMLHttpRequest.prototype.open = (function (plugin) {
+        return function (
+          this: XMLHttpRequest,
+          method: string,
+          url: string | URL,
+          async?: boolean,
+          user?: string | null,
+          password?: string | null
+        ) {
+          (this as unknown as Record<string, unknown>)._telemetryMethod =
+            method;
+          (this as unknown as Record<string, unknown>)._telemetryUrl =
+            typeof url === "string" ? url : String(url);
+          (this as unknown as Record<string, unknown>)._telemetryStartTime =
+            performance.now();
+          // Track this XHR instance for cleanup
+          plugin.patchedXHRs.add(this);
+          return originalOpen.call(
+            this,
+            method,
+            url,
+            async ?? true,
+            user,
+            password
+          );
+        };
+      })(this);
 
-      XMLHttpRequest.prototype.send = function (
-        body?: Document | XMLHttpRequestBodyInit | null
-      ) {
-        const method = (this as any)._telemetryMethod;
-        const url = (this as any)._telemetryUrl;
+      XMLHttpRequest.prototype.send = (function (plugin) {
+        return function (
+          this: XMLHttpRequest,
+          body?: Document | XMLHttpRequestBodyInit | null
+        ) {
+          const startTime = (this as unknown as Record<string, unknown>)
+            ._telemetryStartTime as number;
+          const method = (this as unknown as Record<string, unknown>)
+            ._telemetryMethod as string;
+          const url = (this as unknown as Record<string, unknown>)
+            ._telemetryUrl as string;
 
-        if (method && url) {
-          const startTime = performance.now();
-          const originalOnReadyStateChange = this.onreadystatechange;
-
-          // Create a handler that doesn't capture references to avoid memory leaks
-          const handler = function (this: XMLHttpRequest) {
-            if (this.readyState === XMLHttpRequest.DONE) {
+          // Don't capture telemetry requests to prevent infinite loops
+          if (
+            !plugin.telemetryEndpoint ||
+            !url.includes(plugin.telemetryEndpoint)
+          ) {
+            const handler = function (this: XMLHttpRequest) {
               const endTime = performance.now();
               const duration = endTime - startTime;
 
-              // Don't capture telemetry requests to prevent infinite loops
-              if (
-                !self.telemetryEndpoint ||
-                !url.includes(self.telemetryEndpoint)
-              ) {
-                const evt: TelemetryEvent = {
-                  eventType: "network",
-                  eventName: this.status >= 400 ? "xhr_error" : "xhr",
-                  payload: {
-                    url,
-                    method,
-                    status: this.status,
-                    statusText: this.statusText,
-                    duration,
-                    timestamp: new Date().toISOString(),
-                    type: "xhr",
-                  },
+              const evt: TelemetryEvent = {
+                eventType: "network",
+                eventName: "xhr",
+                payload: {
+                  url,
+                  method,
+                  status: this.status,
+                  statusText: this.statusText,
+                  duration,
                   timestamp: new Date().toISOString(),
-                };
+                  type: "xhr",
+                },
+                timestamp: new Date().toISOString(),
+              };
 
-                self.safeCapture(evt);
-              }
-            }
+              plugin.safeCapture(evt);
+              plugin.xhrHandlers.delete(this);
+            };
 
-            if (originalOnReadyStateChange) {
-              originalOnReadyStateChange.call(
-                this,
-                new Event("readystatechange")
-              );
-            }
-          };
+            this.addEventListener("load", handler);
+            this.addEventListener("error", handler);
+            this.addEventListener("abort", handler);
+            plugin.xhrHandlers.set(this, handler);
+          }
 
-          // Store the handler reference for cleanup
-          self.xhrHandlers.set(this, handler);
-          this.onreadystatechange = handler;
-        }
-
-        return originalSend.call(this, body);
-      };
+          return originalSend.call(this, body);
+        };
+      })(this);
 
       this.logger.info("NetworkPlugin setup complete");
     } catch (error) {
@@ -226,18 +264,30 @@ export class NetworkPlugin extends BasePlugin {
   }
 
   teardown(): void {
-    // Unregister fetch interceptor
+    // Restore fetch
     if (this.unregister) {
       this.unregister();
       this.unregister = null;
     }
 
-    // Restore original XMLHttpRequest methods
-    XMLHttpRequest.prototype.open = this.originalXHROpen;
-    XMLHttpRequest.prototype.send = this.originalXHRSend;
+    // Restore XMLHttpRequest
+    if (this.originalXHROpen && this.originalXHRSend) {
+      XMLHttpRequest.prototype.open = this.originalXHROpen;
+      XMLHttpRequest.prototype.send = this.originalXHRSend;
+    }
 
-    // Clean up stored handlers to prevent memory leaks
-    this.xhrHandlers = new WeakMap();
+    // Clean up XHR handlers
+    this.patchedXHRs.forEach(xhr => {
+      const handler = this.xhrHandlers.get(xhr);
+      if (handler) {
+        xhr.removeEventListener("load", handler);
+        xhr.removeEventListener("error", handler);
+        xhr.removeEventListener("abort", handler);
+      }
+    });
+
+    this.patchedXHRs.clear();
+    // WeakMap doesn't have clear() method, just let it be garbage collected
 
     this.logger.info("NetworkPlugin teardown complete");
   }

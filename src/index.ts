@@ -7,6 +7,7 @@ import {
 } from "./plugins";
 import type { TelemetryConfig } from "./types";
 import { initialTelemetryConfig } from "./utils/initialTelemetryConfig";
+import { getLogger } from "./logger";
 export * from "./logger";
 
 export function initTelemetry(
@@ -37,7 +38,8 @@ export function initTelemetry(
 
     return manager;
   } catch (error) {
-    console.error("Failed to initialize telemetry", {
+    const logger = getLogger();
+    logger.error("Failed to initialize telemetry", {
       error: error instanceof Error ? error.message : String(error),
     });
 
@@ -49,6 +51,14 @@ export function initTelemetry(
       destroy: () => {},
       retryFailedEvents: async () => {},
       isShutdown: true,
-    } as any;
+      getSessionId: () => "",
+      getUserId: () => undefined,
+      getEndpoint: () => "",
+      getCustomEventsPlugin: () => undefined,
+      getFailedEventsCount: () => 0,
+      getQueuedEventsCount: () => 0,
+      getBufferedEventsCount: () => 0,
+      identify: () => {},
+    } as unknown as TelemetryManager;
   }
 }

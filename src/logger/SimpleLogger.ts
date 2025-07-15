@@ -1,5 +1,5 @@
 import { TELEMETRY_SDK_PREFIX } from "../constants";
-import { LogLevel, LoggerConfig, Logger } from "../types/Logger";
+import { LogLevel, type LoggerConfig, type Logger } from "../types/Logger";
 
 export class SimpleLogger implements Logger {
   private config: LoggerConfig;
@@ -14,19 +14,19 @@ export class SimpleLogger implements Logger {
     };
   }
 
-  error(message: string, meta?: any): void {
+  error(message: string, meta?: Record<string, unknown>): void {
     this.log(LogLevel.ERROR, message, meta);
   }
 
-  warn(message: string, meta?: any): void {
+  warn(message: string, meta?: Record<string, unknown>): void {
     this.log(LogLevel.WARN, message, meta);
   }
 
-  info(message: string, meta?: any): void {
+  info(message: string, meta?: Record<string, unknown>): void {
     this.log(LogLevel.INFO, message, meta);
   }
 
-  debug(message: string, meta?: any): void {
+  debug(message: string, meta?: Record<string, unknown>): void {
     this.log(LogLevel.DEBUG, message, meta);
   }
 
@@ -38,8 +38,15 @@ export class SimpleLogger implements Logger {
     this.config = { ...this.config, ...config };
   }
 
-  private log(level: LogLevel, message: string, meta?: any): void {
-    if (!this.config.enableConsole || level < this.config.level!) {
+  private log(
+    level: LogLevel,
+    message: string,
+    meta?: Record<string, unknown>
+  ): void {
+    if (
+      !this.config.enableConsole ||
+      level < (this.config.level ?? LogLevel.INFO)
+    ) {
       return;
     }
 
@@ -61,7 +68,11 @@ export class SimpleLogger implements Logger {
     }
   }
 
-  private formatMessage(level: LogLevel, message: string, meta?: any): string {
+  private formatMessage(
+    level: LogLevel,
+    message: string,
+    meta?: Record<string, unknown>
+  ): string {
     if (this.config.formatter) {
       return this.config.formatter(level, message, meta);
     }

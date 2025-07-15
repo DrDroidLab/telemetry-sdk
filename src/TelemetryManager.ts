@@ -12,7 +12,7 @@ import type {
 export class TelemetryManager {
   private buffer: TelemetryEvent[] = [];
   private plugins: TelemetryPlugin[] = [];
-  private exporter: TelemetryExporter;
+  private exporter: TelemetryExporter | null = null;
   private batchSize: number;
   private flushInterval: number;
   private maxRetries: number;
@@ -90,6 +90,93 @@ export class TelemetryManager {
     }
   }
 
+  /**
+   * Validate and sanitize telemetry event data
+   */
+  private validateEvent(event: TelemetryEvent): TelemetryEvent {
+    // Validate required fields
+    if (!event.eventType || typeof event.eventType !== "string") {
+      throw new Error("Event type is required and must be a string");
+    }
+    if (!event.eventName || typeof event.eventName !== "string") {
+      throw new Error("Event name is required and must be a string");
+    }
+    if (!event.payload || typeof event.payload !== "object") {
+      throw new Error("Event payload is required and must be an object");
+    }
+    if (!event.timestamp || typeof event.timestamp !== "string") {
+      throw new Error("Event timestamp is required and must be a string");
+    }
+    // Validate timestamp format
+    if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}.\d{3}Z$/.test(event.timestamp)) {
+      throw new Error("Invalid timestamp format. Expected ISO 8601 format");
+    }
+    // Sanitize string fields
+    const sanitizedEvent: TelemetryEvent = {
+      ...event,
+      eventType: this.sanitizeString(event.eventType, "eventType"),
+      eventName: this.sanitizeString(event.eventName, "eventName"),
+      payload: this.sanitizePayload(event.payload),
+    };
+    return sanitizedEvent;
+  }
+  private sanitizeString(input: string, fieldName: string): string {
+    if (typeof input !== "string") {
+      throw new Error(`${fieldName} must be a string`);
+    }
+    // Remove null bytes and control characters without regex
+    let sanitized = "";
+    for (let i = 0; i < input.length; i++) {
+      const code = input.charCodeAt(i);
+      if ((code > 31 && code !== 127) || code === 10 || code === 13) {
+        sanitized += input[i];
+      }
+    }
+    sanitized = sanitized.trim();
+    if (sanitized.length === 0) throw new Error(`${fieldName} cannot be empty`);
+    if (sanitized.length > 1000)
+      throw new Error(`${fieldName} is too long (max 1000 characters)`);
+    return sanitized;
+  }
+  private sanitizePayload(
+    payload: Record<string, unknown>
+  ): Record<string, unknown> {
+    if (!payload || typeof payload !== "object") {
+      throw new Error("Payload must be an object");
+    }
+    const sanitized: Record<string, unknown> = {};
+    const keys = Object.keys(payload);
+    if (keys.length > 100) {
+      throw new Error("Payload has too many keys (max 100)");
+    }
+    for (const key of keys) {
+      const sanitizedKey = this.sanitizeString(key, "payload key");
+      const value = payload[key];
+      if (
+        value !== null &&
+        typeof value !== "string" &&
+        typeof value !== "number" &&
+        typeof value !== "boolean" &&
+        !Array.isArray(value) &&
+        typeof value !== "object"
+      ) {
+        throw new Error(`Invalid payload value type for key '${sanitizedKey}'`);
+      }
+      if (
+        typeof value === "object" &&
+        value !== null &&
+        !Array.isArray(value)
+      ) {
+        sanitized[sanitizedKey] = this.sanitizePayload(
+          value as Record<string, unknown>
+        );
+      } else {
+        sanitized[sanitizedKey] = value;
+      }
+    }
+    return sanitized;
+  }
+
   capture(evt: TelemetryEvent) {
     try {
       if (this.isShutdown) {
@@ -102,46 +189,43 @@ export class TelemetryManager {
         );
         return;
       }
-
+      // Validate and sanitize the event
+      const validatedEvent = this.validateEvent(evt);
       // Apply sampling
       if (Math.random() > this.samplingRate) {
         this.logger.debug("Event dropped due to sampling", {
-          eventType: evt.eventType,
-          eventName: evt.eventName,
+          eventType: validatedEvent.eventType,
+          eventName: validatedEvent.eventName,
           samplingRate: this.samplingRate,
         });
         return;
       }
-
       // Add session and user context to the event
       const enrichedEvent: TelemetryEvent = {
-        ...evt,
+        ...validatedEvent,
         sessionId: this.sessionId,
         ...(this.userId && { userId: this.userId }),
       };
-
       // Add event to queue for proper ordering
       this.eventQueue.push(enrichedEvent);
       this.logger.debug("Event queued", {
-        eventType: evt.eventType,
-        eventName: evt.eventName,
+        eventType: validatedEvent.eventType,
+        eventName: validatedEvent.eventName,
         queueSize: this.eventQueue.length,
         sessionId: this.sessionId,
         userId: this.userId,
       });
-
       // Process queue if not already processing
       if (!this.isProcessingQueue) {
-        this.processEventQueue();
+        void this.processEventQueue();
       }
-
       // Check if we should flush
       if (this.buffer.length >= this.batchSize) {
         this.logger.info("Buffer full, triggering flush", {
           bufferSize: this.buffer.length,
           batchSize: this.batchSize,
         });
-        this.flush();
+        void this.flush();
       }
     } catch (error) {
       this.logger.error("Failed to capture event", {
@@ -160,7 +244,7 @@ export class TelemetryManager {
             bufferSize: this.buffer.length,
             flushInterval: this.flushInterval,
           });
-          this.flush();
+          void this.flush();
         }
       }, this.flushInterval);
     }
@@ -192,7 +276,7 @@ export class TelemetryManager {
       let retries = 0;
       while (retries <= this.maxRetries) {
         try {
-          await this.exporter.export(batch);
+          await this.exporter?.export(batch);
           this.logger.info("Events exported successfully", {
             eventCount: batch.length,
             retries,
@@ -266,7 +350,7 @@ export class TelemetryManager {
     // Clear all references
     this.plugins = [];
     this.buffer = [];
-    this.exporter = null as any;
+    this.exporter = null;
 
     this.logger.info("TelemetryManager shutdown complete");
   }
@@ -290,7 +374,7 @@ export class TelemetryManager {
     // Immediately clear all data without flushing
     this.buffer = [];
     this.plugins = [];
-    this.exporter = null as any;
+    this.exporter = null;
 
     this.logger.info("TelemetryManager destroyed");
   }
@@ -335,7 +419,7 @@ export class TelemetryManager {
     }
   }
 
-  private async processEventQueue(): Promise<void> {
+  private processEventQueue(): void {
     if (this.isProcessingQueue || this.eventQueue.length === 0) {
       return;
     }
@@ -344,52 +428,31 @@ export class TelemetryManager {
 
     try {
       while (this.eventQueue.length > 0) {
-        const event = this.eventQueue.shift()!;
+        const event = this.eventQueue.shift();
+        if (event) {
+          // Add to buffer for batching
+          this.buffer.push(event);
 
-        // Add to buffer for batching
-        this.buffer.push(event);
-
-        this.logger.debug("Event processed and added to buffer", {
-          eventType: event.eventType,
-          eventName: event.eventName,
-          bufferSize: this.buffer.length,
-        });
+          this.logger.debug("Event processed and added to buffer", {
+            eventType: event.eventType,
+            eventName: event.eventName,
+            bufferSize: this.buffer.length,
+          });
+        }
       }
     } catch (error) {
-      this.logger.error("Failed to process event queue", {
+      this.logger.error("Error processing event queue", {
         error: error instanceof Error ? error.message : String(error),
-        queueSize: this.eventQueue.length,
       });
     } finally {
       this.isProcessingQueue = false;
     }
   }
 
-  private handleFailedEvent(event: TelemetryEvent, error: unknown): void {
-    // Add to failed events list for potential retry
-    this.failedEvents.push(event);
-
-    // Prevent memory leaks by limiting failed events
-    if (this.failedEvents.length > this.maxFailedEvents) {
-      const removed = this.failedEvents.shift();
-      this.logger.warn("Removed old failed event to prevent memory leak", {
-        eventType: removed?.eventType,
-        eventName: removed?.eventName,
-      });
-    }
-
-    this.logger.error("Event processing failed", {
-      eventType: event.eventType,
-      eventName: event.eventName,
-      error: error instanceof Error ? error.message : String(error),
-      failedEventsCount: this.failedEvents.length,
-    });
-  }
-
   /**
    * Retry failed events (useful for recovery scenarios)
    */
-  async retryFailedEvents(): Promise<void> {
+  retryFailedEvents(): void {
     if (this.failedEvents.length === 0) {
       this.logger.debug("No failed events to retry");
       return;
@@ -406,7 +469,15 @@ export class TelemetryManager {
       try {
         this.capture(event);
       } catch (error) {
-        this.handleFailedEvent(event, error);
+        this.logger.error("Failed to retry event", {
+          eventType: event.eventType,
+          eventName: event.eventName,
+          error: error instanceof Error ? error.message : String(error),
+        });
+        // Add back to failed events if retry fails
+        if (this.failedEvents.length < this.maxFailedEvents) {
+          this.failedEvents.push(event);
+        }
       }
     }
   }
@@ -437,25 +508,35 @@ export class TelemetryManager {
    */
   identify(userId: string, traits?: Record<string, unknown>): void {
     try {
-      this.userId = userId;
-
+      // Validate user ID
+      if (!userId || typeof userId !== "string") {
+        throw new Error("User ID is required and must be a string");
+      }
+      const sanitizedUserId = this.sanitizeString(userId, "userId");
+      this.userId = sanitizedUserId;
+      // Validate and sanitize traits
+      let sanitizedTraits: Record<string, unknown> = {};
+      if (traits) {
+        if (typeof traits !== "object" || Array.isArray(traits)) {
+          throw new Error("Traits must be an object");
+        }
+        sanitizedTraits = this.sanitizePayload(traits);
+      }
       const identifyEvent: TelemetryEvent = {
         eventType: "identify",
         eventName: "user_identified",
         payload: {
-          userId,
-          traits: traits || {},
+          userId: sanitizedUserId,
+          traits: sanitizedTraits,
         },
         timestamp: new Date().toISOString(),
         sessionId: this.sessionId,
         userId: this.userId,
       };
-
       this.logger.info("User identified", {
-        userId,
-        traits: Object.keys(traits || {}),
+        userId: sanitizedUserId,
+        traits: Object.keys(sanitizedTraits),
       });
-
       this.capture(identifyEvent);
     } catch (error) {
       this.logger.error("Failed to identify user", {
@@ -484,6 +565,24 @@ export class TelemetryManager {
    */
   getCustomEventsPlugin(): CustomEventsPlugin | undefined {
     return this.customEventsPlugin;
+  }
+
+  /**
+   * Get the telemetry endpoint URL
+   */
+  getEndpoint(): string {
+    // Type guard for HTTPExporter
+    function hasEndpoint(exporter: unknown): exporter is { endpoint: string } {
+      return (
+        typeof exporter === "object" &&
+        exporter !== null &&
+        "endpoint" in exporter &&
+        typeof (exporter as Record<string, unknown>).endpoint === "string"
+      );
+    }
+    return this.exporter && hasEndpoint(this.exporter)
+      ? this.exporter.endpoint
+      : "";
   }
 
   /**

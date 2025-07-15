@@ -1,4 +1,4 @@
-import { TelemetryExporter, TelemetryEvent } from "../types";
+import type { TelemetryExporter, TelemetryEvent } from "../types";
 import { getLogger } from "../logger";
 
 export class HTTPExporter implements TelemetryExporter {

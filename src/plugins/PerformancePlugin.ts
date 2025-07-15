@@ -125,7 +125,7 @@ export class PerformancePlugin extends BasePlugin {
     }));
   }
 
-  private async captureWebVitals(): Promise<Partial<PerformanceMetrics>> {
+  private captureWebVitals(): Partial<PerformanceMetrics> {
     const vitals: Partial<PerformanceMetrics> = {};
 
     // Time to First Byte
@@ -137,9 +137,7 @@ export class PerformancePlugin extends BasePlugin {
     }
 
     // First Contentful Paint
-    const fcpEntry = performance.getEntriesByName(
-      "first-contentful-paint"
-    )[0] as PerformanceEntry;
+    const fcpEntry = performance.getEntriesByName("first-contentful-paint")[0];
     if (fcpEntry) {
       vitals.fcp = fcpEntry.startTime;
     }
@@ -153,8 +151,9 @@ export class PerformancePlugin extends BasePlugin {
     // First Input Delay (if available)
     const fidEntries = performance.getEntriesByType("first-input");
     if (fidEntries.length > 0) {
-      const fidEntry = fidEntries[0] as any;
-      vitals.fid = fidEntry.processingStart - fidEntry.startTime;
+      const fidEntry = fidEntries[0] as unknown as Record<string, unknown>;
+      vitals.fid =
+        (fidEntry.processingStart as number) - (fidEntry.startTime as number);
     }
 
     return vitals;
@@ -168,7 +167,7 @@ export class PerformancePlugin extends BasePlugin {
     );
   }
 
-  private capturePerformanceMetrics = async () => {
+  private capturePerformanceMetrics = () => {
     try {
       // Wait for page to be fully loaded
       if (document.readyState !== "complete") {
@@ -191,7 +190,7 @@ export class PerformancePlugin extends BasePlugin {
       navigationMetrics.resourceLoadTimes = resourceMetrics;
 
       // Capture web vitals
-      const webVitals = await this.captureWebVitals();
+      const webVitals = this.captureWebVitals();
       const allMetrics = { ...navigationMetrics, ...webVitals };
 
       const evt: TelemetryEvent = {
@@ -243,20 +242,20 @@ export class PerformancePlugin extends BasePlugin {
 
   private captureLayoutShift = (entry: PerformanceEntry) => {
     try {
-      const layoutShiftEntry = entry as any;
+      const layoutShiftEntry = entry as unknown as Record<string, unknown>;
       const evt: TelemetryEvent = {
         eventType: "performance",
         eventName: "layout_shift",
         payload: {
-          value: layoutShiftEntry.value,
-          sources: layoutShiftEntry.sources,
-          startTime: layoutShiftEntry.startTime,
+          value: layoutShiftEntry.value as number,
+          sources: layoutShiftEntry.sources as unknown[],
+          startTime: layoutShiftEntry.startTime as number,
         },
         timestamp: new Date().toISOString(),
       };
 
       this.logger.debug("Layout shift detected", {
-        value: layoutShiftEntry.value,
+        value: layoutShiftEntry.value as number,
       });
 
       this.safeCapture(evt);
@@ -277,9 +276,11 @@ export class PerformancePlugin extends BasePlugin {
     try {
       // Capture initial page load metrics
       if (document.readyState === "complete") {
-        this.capturePerformanceMetrics();
+        void this.capturePerformanceMetrics();
       } else {
-        window.addEventListener("load", this.capturePerformanceMetrics);
+        window.addEventListener("load", () => {
+          this.capturePerformanceMetrics();
+        });
       }
 
       // Monitor for long tasks

@@ -1,7 +1,7 @@
 {
   "name": "telemetry-sdk",
   "version": "1.0.0",
-  "description": "",
+  "description": "A lightweight, configurable telemetry tracking library for JavaScript/TypeScript applications with comprehensive error handling, event batching, and graceful degradation",
   "main": "dist/index.js",
   "module": "dist/index.esm.js",
   "types": "dist/index.d.ts",
@@ -12,17 +12,40 @@
     "build": "tsup",
     "dev": "tsup --watch",
     "test": "vitest",
+    "lint": "eslint src --ext .ts,.tsx",
+    "lint:fix": "eslint src --ext .ts,.tsx --fix",
     "prepare": "husky",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "postinstall": "husky"
   },
-  "keywords": [],
-  "author": "",
+  "keywords": [
+    "telemetry",
+    "analytics",
+    "tracking",
+    "monitoring",
+    "performance",
+    "typescript",
+    "javascript",
+    "sdk",
+    "events",
+    "logging"
+  ],
+  "author": "Telemetry SDK Contributors",
   "license": "ISC",
   "packageManager": "pnpm@10.6.3",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/your-org/telemetry-sdk.git"
+  },
   "devDependencies": {
+    "@eslint/js": "^9.31.0",
     "@types/node": "^24.0.13",
+    "@typescript-eslint/eslint-plugin": "^8.37.0",
+    "@typescript-eslint/parser": "^8.37.0",
+    "eslint": "^9.31.0",
+    "eslint-config-prettier": "^10.1.5",
+    "eslint-plugin-prettier": "^5.5.1",
     "husky": "^9.1.7",
     "lint-staged": "^16.1.2",
     "prettier": "^3.6.2",
@@ -31,7 +54,11 @@
     "vitest": "^3.2.4"
   },
   "lint-staged": {
-    "*.{js,jsx,ts,tsx,json,md}": [
+    "*.{js,jsx,ts,tsx}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{json,md}": [
       "prettier --write"
     ]
   }
