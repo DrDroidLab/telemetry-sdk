@@ -17,7 +17,7 @@ export class TelemetryManager {
   private maxRetries: number;
   private retryDelay: number;
   private samplingRate: number;
-  private flushTimer?: NodeJS.Timeout;
+  private flushTimer: NodeJS.Timeout | undefined;
   private logger: Logger;
   private eventQueue: TelemetryEvent[] = [];
   private isProcessingQueue = false;
