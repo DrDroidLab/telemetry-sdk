@@ -32,13 +32,19 @@ export class LogPlugin extends BasePlugin {
   }
 
   public teardown(): void {
-    // Restore originals
-    (Object.keys(this.originals) as ConsoleMethod[]).forEach(method => {
-      const original = this.originals[method];
-      if (original) {
-        console[method] = original;
-      }
-    });
-    this.logger.info("LogPlugin teardown complete");
+    try {
+      // Restore originals
+      (Object.keys(this.originals) as ConsoleMethod[]).forEach(method => {
+        const original = this.originals[method];
+        if (original) {
+          console[method] = original;
+        }
+      });
+      this.logger.info("LogPlugin teardown complete");
+    } catch (error) {
+      this.logger.error("Failed to teardown LogPlugin", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
   }
 }

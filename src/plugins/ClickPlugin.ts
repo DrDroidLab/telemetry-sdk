@@ -4,15 +4,39 @@ import type { TelemetryEvent } from "../types";
 export class ClickPlugin extends BasePlugin {
   private handler = (e: MouseEvent) => {
     try {
-      const tgt = e.target as HTMLElement;
+      const target = e.target;
+
+      // Validate that target is an HTMLElement
+      if (!target || !(target instanceof HTMLElement)) {
+        this.logger.debug(
+          "Click event target is not an HTMLElement, skipping",
+          {
+            targetType: target ? typeof target : "null",
+          }
+        );
+        return;
+      }
+
+      const tgt = target;
+
+      // Safely extract text content with null checks
+      let textContent: string | null = null;
+      try {
+        textContent = tgt.textContent?.trim().slice(0, 50) || null;
+      } catch (error) {
+        this.logger.debug("Failed to extract text content", {
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+
       const evt: TelemetryEvent = {
         eventType: "interaction",
         eventName: "click",
         payload: {
-          tag: tgt.tagName,
+          tag: tgt.tagName || "unknown",
           id: tgt.id || null,
           classes: tgt.className || null,
-          text: tgt.textContent?.trim().slice(0, 50) || null,
+          text: textContent,
           x: e.clientX,
           y: e.clientY,
         },
@@ -56,7 +80,15 @@ export class ClickPlugin extends BasePlugin {
   }
 
   teardown(): void {
-    document.removeEventListener("click", this.handler, true);
-    this.logger.info("ClickPlugin teardown complete");
+    try {
+      if (typeof document !== "undefined") {
+        document.removeEventListener("click", this.handler, true);
+      }
+      this.logger.info("ClickPlugin teardown complete");
+    } catch (error) {
+      this.logger.error("Failed to teardown ClickPlugin", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
   }
 }

@@ -2,7 +2,7 @@ import type { TelemetryConfig } from "../types/TelemetryConfig";
 
 export const initialTelemetryConfig: TelemetryConfig = {
   endpoint: "https://api.your-domain.com/telemetry", // Replace with your actual telemetry endpoint
-  batchSize: 50,
+  batchSize: 5,
   enableClicks: true,
   enableLogs: true,
   enableNetwork: true,

@@ -14,10 +14,10 @@ export const createConsoleInterceptor = (
   const { originals, safeCapture } = context;
 
   return (...args: unknown[]) => {
-    // 1. forward to the real console
+    // 1. forward to the real console using the stored original
     const original = originals[method];
     if (original) {
-      original(...args);
+      original.apply(console, args);
     }
 
     // 2. check if this is our own SDK log to prevent infinite recursion
@@ -47,6 +47,7 @@ export const setupConsoleInterceptors = (
   const methods: ConsoleMethod[] = ["log", "info", "warn", "error", "debug"];
 
   methods.forEach(method => {
+    // Store the original method BEFORE replacing it
     context.originals[method] = console[method].bind(console);
     console[method] = createConsoleInterceptor(method, context);
   });

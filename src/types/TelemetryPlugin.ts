@@ -5,4 +5,6 @@ export type TelemetryPlugin = {
   initialize(manager: TelemetryManager): void;
   /** Optional cleanup hook */
   teardown?(): void;
+  /** Destroy the plugin and clean up all resources */
+  destroy?(): void;
 };
