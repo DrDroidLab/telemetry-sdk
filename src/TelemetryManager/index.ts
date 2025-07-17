@@ -103,6 +103,7 @@ export class TelemetryManager {
       flushInterval: this.flushInterval,
       maxRetries: config.maxRetries ?? 3,
       samplingRate: config.samplingRate ?? 1.0,
+      enablePageViews: config.enablePageViews,
       enableClicks: config.enableClicks,
       enableLogs: config.enableLogs,
       enableNetwork: config.enableNetwork,

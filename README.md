@@ -141,6 +141,7 @@ const telemetry = initTelemetry({
   samplingRate: 0.1, // Only capture 10% of events (0.0 to 1.0)
 
   // Plugin configuration
+  enablePageViews: true, // Track page view events (page_hit)
   enableClicks: true, // Track user clicks
   enableLogs: true, // Track console logs
   enableNetwork: true, // Track HTTP requests
@@ -193,6 +194,7 @@ This ensures that telemetry data is not lost even if developers forget to manual
 | `maxRetries`         | `number`       | `3`            | Maximum number of retry attempts         |
 | `retryDelay`         | `number`       | `1000`         | Delay between retries in milliseconds    |
 | `samplingRate`       | `number`       | `1.0`          | Sampling rate (0.0 to 1.0)               |
+| `enablePageViews`    | `boolean`      | `true`         | Enable page view tracking (page_hit)     |
 | `enableClicks`       | `boolean`      | `true`         | Enable click event tracking              |
 | `enableLogs`         | `boolean`      | `true`         | Enable console log tracking              |
 | `enableNetwork`      | `boolean`      | `true`         | Enable network request tracking          |
@@ -413,6 +415,7 @@ The SDK automatically captures various types of events:
 
 ### Automatic Events
 
+- **Page View Events**: Automatic page_hit events when someone first visits a page
 - **Click Events**: User interactions with DOM elements
 - **Network Events**: HTTP requests and responses (fetch, XHR)
 - **Performance Events**: Page load metrics, Core Web Vitals, long tasks
@@ -436,6 +439,10 @@ if (customPlugin) {
 ## 🔌 Plugin System
 
 The SDK uses a plugin architecture for extensibility. Built-in plugins include:
+
+### PageViewPlugin
+
+Automatically captures page_hit events when someone first visits a page. Includes viewport information, browser details, and page metadata.
 
 ### ClickPlugin
 

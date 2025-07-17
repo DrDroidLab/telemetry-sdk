@@ -6,6 +6,7 @@ import {
   NetworkPlugin,
   PerformancePlugin,
   CustomEventsPlugin,
+  PageViewPlugin,
 } from "../plugins";
 
 export class PluginManager {
@@ -24,6 +25,11 @@ export class PluginManager {
     try {
       // Define plugin configurations
       const pluginConfigs = [
+        {
+          enabled: config.enablePageViews ?? true, // Enable page views by default
+          plugin: PageViewPlugin,
+          name: "PageViewPlugin",
+        },
         {
           enabled: config.enableClicks,
           plugin: ClickPlugin,

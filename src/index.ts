@@ -16,6 +16,7 @@ import { LogPlugin } from "./plugins/LogPlugin";
 import { NetworkPlugin } from "./plugins/NetworkPlugin";
 import { PerformancePlugin } from "./plugins/PerformancePlugin";
 import { CustomEventsPlugin } from "./plugins/CustomEventsPlugin";
+import { PageViewPlugin } from "./plugins/PageViewPlugin";
 import { initialTelemetryConfig } from "./utils/initialTelemetryConfig";
 
 export {
@@ -26,6 +27,7 @@ export {
   NetworkPlugin,
   PerformancePlugin,
   CustomEventsPlugin,
+  PageViewPlugin,
   HTTPExporter,
   getLogger,
   setLogger,

@@ -5,6 +5,7 @@ export type TelemetryConfig = {
   endpoint?: string; // Optional since we use hardcoded Hyperlook URL
   hyperlookApiKey?: string; // API key for Hyperlook exporter
   exporters?: ExporterType[]; // Array of enabled exporters
+  enablePageViews?: boolean; // Enable page view tracking
   enableClicks?: boolean;
   enableLogs?: boolean;
   enableNetwork?: boolean;
