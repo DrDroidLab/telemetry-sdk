@@ -1,13 +1,14 @@
 import type { TelemetryEvent } from "../../../types";
 import type { HyperlookEvent } from "../types";
 import { generateEventId } from "./generateEventId";
+import { limitPropertiesSize } from "./limitPropertiesSize";
 
 export function transformEvent(event: TelemetryEvent): HyperlookEvent {
   const transformed: HyperlookEvent = {
     event_id: generateEventId(),
     event_type: event.eventType,
     event_name: event.eventName,
-    properties: event.payload || {},
+    properties: limitPropertiesSize(event.payload || {}),
     user_properties: {}, // Can be extended later if needed
     timestamp: event.timestamp,
   };
