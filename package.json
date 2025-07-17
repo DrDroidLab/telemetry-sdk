@@ -1,6 +1,6 @@
 {
   "name": "@jayeshsadhwani/telemetry-sdk",
-  "version": "1.0.0",
+  "version": "1.0.2",
   "description": "A lightweight, configurable telemetry tracking library for JavaScript/TypeScript applications with comprehensive error handling, event batching, and graceful degradation",
   "main": "dist/index.js",
   "module": "dist/index.esm.js",
@@ -19,7 +19,7 @@
     "format:check": "prettier --check .",
     "postinstall": "husky",
     "prepublishOnly": "pnpm run build && pnpm run lint",
-    "version": "pnpm run build && git add -A dist",
+    "version": "pnpm run build",
     "postversion": "git push && git push --tags"
   },
   "keywords": [
