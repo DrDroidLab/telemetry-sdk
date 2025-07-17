@@ -2,7 +2,7 @@ import { initTelemetry } from "../src";
 
 // Initialize telemetry with custom events enabled
 const telemetry = initTelemetry({
-  endpoint: "https://your-telemetry-endpoint.com/events",
+  hyperlookApiKey: "your-actual-hyperlook-api-key", // Replace with your actual API key
   enableCustomEvents: true,
   sessionId: "custom-session-123", // Optional: provide custom session ID
   userId: "user-456", // Optional: provide initial user ID

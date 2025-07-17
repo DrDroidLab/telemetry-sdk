@@ -12,6 +12,8 @@ export class EventProcessor {
   private batchSize: number;
   private sessionId: string;
   private userId?: string;
+  private readonly MAX_QUEUE_SIZE = 10000; // Prevent unbounded queue growth
+  private readonly MAX_BUFFER_SIZE = 5000; // Prevent unbounded buffer growth
 
   constructor(
     logger: Logger,
@@ -80,6 +82,17 @@ export class EventProcessor {
         ...(this.userId && { userId: this.userId }),
       };
 
+      // Check queue size limit to prevent memory leaks
+      if (this.eventQueue.length >= this.MAX_QUEUE_SIZE) {
+        this.logger.warn("Event queue full, dropping oldest event", {
+          eventType: validatedEvent.eventType,
+          eventName: validatedEvent.eventName,
+          queueSize: this.eventQueue.length,
+          maxQueueSize: this.MAX_QUEUE_SIZE,
+        });
+        this.eventQueue.shift(); // Remove oldest event
+      }
+
       this.eventQueue.push(enrichedEvent);
       this.logger.debug("Event queued", {
         eventType: validatedEvent.eventType,
@@ -110,6 +123,17 @@ export class EventProcessor {
       while (this.eventQueue.length > 0) {
         const event = this.eventQueue.shift();
         if (event) {
+          // Check buffer size limit to prevent memory leaks
+          if (this.buffer.length >= this.MAX_BUFFER_SIZE) {
+            this.logger.warn("Buffer full, dropping oldest event", {
+              eventType: event.eventType,
+              eventName: event.eventName,
+              bufferSize: this.buffer.length,
+              maxBufferSize: this.MAX_BUFFER_SIZE,
+            });
+            this.buffer.shift(); // Remove oldest event
+          }
+
           this.buffer.push(event);
           this.logger.debug("Event processed and added to buffer", {
             eventType: event.eventType,

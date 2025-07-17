@@ -2,9 +2,6 @@ import { initTelemetry, LogLevel } from "../src/index";
 
 // Advanced telemetry configuration
 const telemetry = initTelemetry({
-  // Required: Endpoint for sending telemetry data
-  endpoint: "https://your-api.com/telemetry",
-
   // Event batching configuration
   batchSize: 25, // Smaller batch size for more frequent sends
   flushInterval: 15000, // Flush every 15 seconds

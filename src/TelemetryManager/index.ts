@@ -1,16 +1,20 @@
-import { HTTPExporter } from "../exporters";
+import { HyperlookExporter } from "../exporters/HyperlookExporter";
+import { HTTPExporter } from "../exporters/HTTPExporter";
 import { getLogger, setLogger, createLogger } from "../logger";
 import type {
   TelemetryConfig,
   TelemetryEvent,
   TelemetryPlugin,
   Logger,
+  TelemetryExporter,
 } from "../types";
+import { ExporterType } from "../types/ExporterTypes";
 import { validateConfig, generateSessionId } from "./utils";
 import { TelemetryState } from "./types";
 import { PluginManager } from "./PluginManager";
 import { EventProcessor } from "./EventProcessor";
 import { ExportManager } from "./ExportManager";
+import { HYPERLOOK_URL } from "../constants";
 
 export class TelemetryManager {
   private state: TelemetryState = TelemetryState.INITIALIZING;
@@ -54,11 +58,29 @@ export class TelemetryManager {
       this.sessionId,
       this.userId
     );
+
+    // Instantiate exporters based on config
+    const enabledExporters: TelemetryExporter[] = [];
+    const exportersToEnable = config.exporters ?? [ExporterType.HYPERLOOK];
+    for (const exporterType of exportersToEnable) {
+      if (exporterType === ExporterType.HYPERLOOK) {
+        if (!config.hyperlookApiKey) {
+          throw new Error(
+            "Hyperlook API key is required when Hyperlook exporter is enabled"
+          );
+        }
+        enabledExporters.push(new HyperlookExporter(config.hyperlookApiKey));
+      } else if (exporterType === ExporterType.HTTP) {
+        enabledExporters.push(new HTTPExporter());
+      }
+    }
+
     this.exportManager = new ExportManager(
       this.logger,
-      new HTTPExporter(config.endpoint),
+      enabledExporters,
       config.maxRetries ?? 3,
-      config.retryDelay ?? 1000
+      config.retryDelay ?? 1000,
+      config.endpoint
     );
 
     // Initialize plugins
@@ -76,7 +98,7 @@ export class TelemetryManager {
     this.startFlushTimer();
 
     this.logger.info("TelemetryManager initialized", {
-      endpoint: config.endpoint,
+      endpoint: HYPERLOOK_URL,
       batchSize: config.batchSize ?? 50,
       flushInterval: this.flushInterval,
       maxRetries: config.maxRetries ?? 3,
@@ -86,6 +108,7 @@ export class TelemetryManager {
       enableNetwork: config.enableNetwork,
       enablePerformance: config.enablePerformance,
       enableCustomEvents: config.enableCustomEvents,
+      exporters: exportersToEnable,
     });
   }
 
@@ -97,7 +120,7 @@ export class TelemetryManager {
     const success = this.eventProcessor.capture(event);
     if (success) {
       // Process queue asynchronously
-      void this.processEventQueueAsync();
+      this.processEventQueueAsync();
 
       // Check if buffer is full and trigger flush
       if (this.eventProcessor.isBufferFull()) {
@@ -178,7 +201,7 @@ export class TelemetryManager {
     // Clear all data
     this.eventProcessor.clear();
     this.failedEvents = [];
-    this.exportManager.setExporter(null);
+    this.exportManager.setExporters([]);
 
     this.state = TelemetryState.SHUTDOWN;
     this.logger.info("TelemetryManager shutdown complete");
@@ -195,7 +218,7 @@ export class TelemetryManager {
 
     this.eventProcessor.clear();
     this.failedEvents = [];
-    this.exportManager.setExporter(null);
+    this.exportManager.setExporters([]);
 
     this.logger.info("TelemetryManager destroyed");
   }
@@ -219,8 +242,15 @@ export class TelemetryManager {
           eventName: event.eventName,
           error: error instanceof Error ? error.message : String(error),
         });
+        // Check if we're at the limit before adding to failed events
         if (this.failedEvents.length < this.maxFailedEvents) {
           this.failedEvents.push(event);
+        } else {
+          this.logger.warn("Failed events limit reached, dropping event", {
+            eventType: event.eventType,
+            eventName: event.eventName,
+            maxFailedEvents: this.maxFailedEvents,
+          });
         }
       }
     }
@@ -294,8 +324,6 @@ export class TelemetryManager {
   }
 
   getEndpoint(): string {
-    // The ExportManager doesn't expose the endpoint directly, so we return empty string
-    // In a real implementation, you might want to store the endpoint separately
-    return "";
+    return HYPERLOOK_URL;
   }
 }

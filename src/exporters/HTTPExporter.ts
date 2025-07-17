@@ -4,12 +4,12 @@ import { getLogger } from "../logger";
 export class HTTPExporter implements TelemetryExporter {
   private logger = getLogger();
 
-  constructor(private endpoint: string) {
-    this.logger.debug("HttpExporter initialized", { endpoint });
+  constructor() {
+    this.logger.debug("HttpExporter initialized");
   }
 
-  async export(events: TelemetryEvent[]): Promise<void> {
-    if (!this.endpoint || this.endpoint.trim() === "") {
+  async export(events: TelemetryEvent[], endpoint?: string): Promise<void> {
+    if (!endpoint || endpoint.trim() === "") {
       this.logger.warn("HTTP export skipped - no endpoint configured", {
         eventCount: events.length,
       });
@@ -17,28 +17,45 @@ export class HTTPExporter implements TelemetryExporter {
     }
 
     this.logger.debug("Exporting events via HTTP", {
-      endpoint: this.endpoint,
+      endpoint,
       eventCount: events.length,
     });
 
     try {
-      const response = await fetch(this.endpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ events }),
-      });
+      // Add timeout protection for network requests
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
 
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      try {
+        const response = await fetch(endpoint, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ events }),
+          signal: controller.signal,
+        });
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        this.logger.debug("HTTP export successful", {
+          status: response.status,
+          eventCount: events.length,
+        });
+      } catch (error) {
+        clearTimeout(timeoutId);
+        this.logger.error("HTTP export failed", {
+          endpoint,
+          error: error instanceof Error ? error.message : String(error),
+          errorStack: error instanceof Error ? error.stack : undefined,
+          eventCount: events.length,
+        });
+        throw error;
       }
-
-      this.logger.debug("HTTP export successful", {
-        status: response.status,
-        eventCount: events.length,
-      });
     } catch (error) {
       this.logger.error("HTTP export failed", {
-        endpoint: this.endpoint,
+        endpoint,
         error: error instanceof Error ? error.message : String(error),
         errorStack: error instanceof Error ? error.stack : undefined,
         eventCount: events.length,

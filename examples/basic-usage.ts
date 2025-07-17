@@ -2,7 +2,7 @@ import { initTelemetry } from "../src/index";
 
 // Basic telemetry initialization
 const telemetry = initTelemetry({
-  endpoint: "https://your-api.com/telemetry",
+  hyperlookApiKey: "your-actual-hyperlook-api-key", // Replace with your actual API key
   enableClicks: true,
   enableLogs: true,
   enableNetwork: true,

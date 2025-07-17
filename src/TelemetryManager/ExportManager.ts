@@ -2,7 +2,8 @@ import type { TelemetryEvent, TelemetryExporter, Logger } from "../types";
 import { CircuitBreaker } from "./CircuitBreaker";
 
 export class ExportManager {
-  private exporter: TelemetryExporter | null = null;
+  private exporters: TelemetryExporter[] = [];
+  private endpoint?: string;
   private circuitBreaker: CircuitBreaker;
   private logger: Logger;
   private maxRetries: number;
@@ -11,12 +12,16 @@ export class ExportManager {
 
   constructor(
     logger: Logger,
-    exporter: TelemetryExporter,
+    exporters: TelemetryExporter[],
     maxRetries: number = 3,
-    retryDelay: number = 1000
+    retryDelay: number = 1000,
+    endpoint?: string
   ) {
     this.logger = logger;
-    this.exporter = exporter;
+    this.exporters = exporters;
+    if (endpoint) {
+      this.endpoint = endpoint;
+    }
     this.maxRetries = maxRetries;
     this.retryDelay = retryDelay;
     this.circuitBreaker = new CircuitBreaker(logger);
@@ -49,33 +54,47 @@ export class ExportManager {
       this.logger.info("Flushing events", {
         eventCount: events.length,
         events: events.map(e => ({ type: e.eventType, name: e.eventName })),
+        exporters: this.exporters.length,
       });
 
       let retries = 0;
+      let lastErrors: unknown[] = [];
       while (retries <= this.maxRetries) {
-        try {
-          await this.exporter?.export(events);
-          this.logger.info("Events exported successfully", {
-            eventCount: events.length,
-            retries,
-          });
-
-          // Reset circuit breaker on success
+        const results = await Promise.all(
+          this.exporters.map(async exporter => {
+            try {
+              await exporter.export(events, this.endpoint);
+              return { success: true };
+            } catch (error) {
+              return { success: false, error };
+            }
+          })
+        );
+        const anySuccess = results.some(r => r.success);
+        lastErrors = results.filter(r => !r.success).map(r => r.error);
+        if (anySuccess) {
           this.circuitBreaker.recordSuccess();
+          this.logger.info(
+            "Events exported successfully to at least one exporter",
+            {
+              eventCount: events.length,
+              retries,
+            }
+          );
           return { success: true, shouldReturnToBuffer: false };
-        } catch (error) {
+        } else {
           retries++;
           this.circuitBreaker.recordFailure();
-
-          this.logger.error("Failed to export events", {
-            error: error instanceof Error ? error.message : String(error),
+          this.logger.error("Failed to export events to all exporters", {
             eventCount: events.length,
             retry: retries,
             maxRetries: this.maxRetries,
             consecutiveFailures:
               this.circuitBreaker.getState().consecutiveFailures,
+            errors: lastErrors.map(e =>
+              e instanceof Error ? e.message : String(e)
+            ),
           });
-
           if (retries <= this.maxRetries) {
             await new Promise(resolve =>
               setTimeout(resolve, this.retryDelay * retries)
@@ -103,15 +122,14 @@ export class ExportManager {
           }
         }
       }
-
       return { success: false, shouldReturnToBuffer: false };
     } finally {
       this.isFlushing = false;
     }
   }
 
-  setExporter(exporter: TelemetryExporter | null): void {
-    this.exporter = exporter;
+  setExporters(exporters: TelemetryExporter[]): void {
+    this.exporters = exporters;
   }
 
   getCircuitBreakerState() {

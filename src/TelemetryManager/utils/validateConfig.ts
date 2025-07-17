@@ -1,14 +1,18 @@
 import type { TelemetryConfig } from "../../types";
+import { ExporterType } from "../../types/ExporterTypes";
 
 export function validateConfig(config: TelemetryConfig): void {
-  if (!config.endpoint || config.endpoint.trim() === "") {
-    throw new Error("Telemetry endpoint is required");
-  }
+  // Endpoint validation removed since we use hardcoded Hyperlook URL
 
-  try {
-    new URL(config.endpoint);
-  } catch {
-    throw new Error("Invalid endpoint URL format");
+  // Validate Hyperlook API key if Hyperlook exporter is enabled
+  const exportersToEnable = config.exporters ?? [ExporterType.HYPERLOOK];
+  if (
+    exportersToEnable.includes(ExporterType.HYPERLOOK) &&
+    !config.hyperlookApiKey
+  ) {
+    throw new Error(
+      "Hyperlook API key is required when Hyperlook exporter is enabled"
+    );
   }
 
   if (

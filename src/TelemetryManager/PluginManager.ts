@@ -7,7 +7,6 @@ import {
   PerformancePlugin,
   CustomEventsPlugin,
 } from "../plugins";
-import type { TelemetryManager } from "./index";
 
 export class PluginManager {
   private plugins: TelemetryPlugin[] = [];
@@ -76,7 +75,17 @@ export class PluginManager {
     return pluginsToRegister;
   }
 
-  register(plugin: TelemetryPlugin, manager: TelemetryManager): void {
+  register(
+    plugin: TelemetryPlugin,
+    manager: {
+      capture(event: {
+        eventType: string;
+        eventName: string;
+        payload: Record<string, unknown>;
+        timestamp: string;
+      }): void;
+    }
+  ): void {
     try {
       this.validateState();
       this.plugins.push(plugin);
