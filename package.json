@@ -17,7 +17,6 @@
     "prepare": "husky",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "postinstall": "husky",
     "prepublishOnly": "pnpm run build && pnpm run lint",
     "version": "pnpm run build",
     "postversion": "git push && git push --tags"
