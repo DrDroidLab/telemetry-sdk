@@ -452,7 +452,7 @@ The SDK automatically captures various types of events:
 
 ### Automatic Events
 
-- **Page View Events**: Automatic page_hit events when someone first visits a page
+- **Page View Events**: Automatic page_hit events when someone first visits a page or navigates to a new page (React/Next.js client-side routing)
 - **Click Events**: User interactions with DOM elements
 - **Network Events**: HTTP requests and responses (fetch, XHR)
 - **Performance Events**: Page load metrics, Core Web Vitals, long tasks
@@ -479,7 +479,14 @@ The SDK uses a plugin architecture for extensibility. Built-in plugins include:
 
 ### PageViewPlugin
 
-Automatically captures page_hit events when someone first visits a page. Includes viewport information, browser details, and page metadata.
+Automatically captures page_hit events when someone first visits a page and on client-side navigation in React/Next.js applications. Includes viewport information, browser details, and page metadata. Now supports:
+
+- **Initial page loads**: Captures page view when the page first loads
+- **React Router navigation**: Tracks `pushState` and `replaceState` calls
+- **Next.js client-side routing**: Automatically detects and tracks navigation
+- **Browser navigation**: Captures back/forward button usage
+- **Duplicate prevention**: Avoids sending multiple events for the same URL
+- **Navigation flag**: Includes `isNavigation` flag to distinguish initial loads from navigation
 
 ### ClickPlugin
 
