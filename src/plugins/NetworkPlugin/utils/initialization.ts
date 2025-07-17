@@ -1,24 +1,31 @@
 export const isNetworkSupported = (): boolean => {
-  return (
-    typeof window !== "undefined" &&
-    typeof fetch !== "undefined" &&
-    typeof XMLHttpRequest !== "undefined"
-  );
+  // In browser environment, require both fetch and XMLHttpRequest
+  if (typeof window !== "undefined") {
+    return (
+      typeof fetch !== "undefined" && typeof XMLHttpRequest !== "undefined"
+    );
+  }
+
+  // In Node.js environment, only require fetch (XMLHttpRequest not available)
+  return typeof fetch !== "undefined";
 };
 
 export const initializeOriginalFetch = (): typeof fetch => {
-  if (
-    typeof window !== "undefined" &&
-    !(window as unknown as Record<string, unknown>)._originalFetch
-  ) {
-    (window as unknown as Record<string, unknown>)._originalFetch =
-      window.fetch;
+  // In browser environment
+  if (typeof window !== "undefined") {
+    if (!(window as unknown as Record<string, unknown>)._originalFetch) {
+      (window as unknown as Record<string, unknown>)._originalFetch =
+        window.fetch;
+    }
+
+    return (
+      ((window as unknown as Record<string, unknown>)
+        ._originalFetch as typeof fetch) || window.fetch
+    );
   }
 
-  return (
-    ((window as unknown as Record<string, unknown>)
-      ._originalFetch as typeof fetch) || window.fetch
-  );
+  // In Node.js environment, return the global fetch
+  return globalThis.fetch;
 };
 
 export const createOriginalXHROpen =

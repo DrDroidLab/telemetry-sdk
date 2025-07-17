@@ -27,8 +27,11 @@ export class NetworkPlugin extends BasePlugin {
     super();
     if (this.isSupported()) {
       this.originalFetch = initializeOriginalFetch();
-      this.originalXHROpen = createOriginalXHROpen();
-      this.originalXHRSend = createOriginalXHRSend();
+      // Only initialize XHR if we're in a browser environment
+      if (typeof XMLHttpRequest !== "undefined") {
+        this.originalXHROpen = createOriginalXHROpen();
+        this.originalXHRSend = createOriginalXHRSend();
+      }
     }
   }
 
@@ -50,21 +53,24 @@ export class NetworkPlugin extends BasePlugin {
         originalFetch: this.originalFetch,
         telemetryEndpoint: this.telemetryEndpoint,
         safeCapture: this.safeCapture.bind(this),
+        logger: this.logger,
       });
 
-      // Set up XHR interceptors
-      const xhrInterceptors = setupXHRInterceptors({
-        telemetryEndpoint: this.telemetryEndpoint,
-        safeCapture: this.safeCapture.bind(this),
-        xhrHandlers: this.xhrHandlers,
-        patchedXHRs: this.patchedXHRs,
-      });
+      // Set up XHR interceptors only if XMLHttpRequest is available
+      if (typeof XMLHttpRequest !== "undefined") {
+        const xhrInterceptors = setupXHRInterceptors({
+          telemetryEndpoint: this.telemetryEndpoint,
+          safeCapture: this.safeCapture.bind(this),
+          xhrHandlers: this.xhrHandlers,
+          patchedXHRs: this.patchedXHRs,
+        });
 
-      this.originalXHROpen = xhrInterceptors.originalOpen;
-      this.originalXHRSend = xhrInterceptors.originalSend;
+        this.originalXHROpen = xhrInterceptors.originalOpen;
+        this.originalXHRSend = xhrInterceptors.originalSend;
 
-      // Set up periodic cleanup to prevent memory leaks
-      this.setupCleanupInterval();
+        // Set up periodic cleanup to prevent memory leaks
+        this.setupCleanupInterval();
+      }
 
       this.logger.info("NetworkPlugin setup complete");
     } catch (error) {
@@ -132,8 +138,12 @@ export class NetworkPlugin extends BasePlugin {
         this.unregister = null;
       }
 
-      // Restore XMLHttpRequest
-      if (this.originalXHROpen && this.originalXHRSend) {
+      // Restore XMLHttpRequest only if it was available
+      if (
+        typeof XMLHttpRequest !== "undefined" &&
+        this.originalXHROpen &&
+        this.originalXHRSend
+      ) {
         try {
           XMLHttpRequest.prototype.open = this.originalXHROpen;
           XMLHttpRequest.prototype.send = this.originalXHRSend;

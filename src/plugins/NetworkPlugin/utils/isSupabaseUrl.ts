@@ -11,12 +11,15 @@ export const isSupabaseUrl = (url: string): boolean => {
     );
     const hostname = urlObj.hostname.toLowerCase();
 
-    // Check for exact Supabase domains
-    return (
-      hostname.includes("supabase.co") || hostname.includes("supabase.com")
-    );
+    const isSupabase =
+      hostname.includes("supabase.co") || hostname.includes("supabase.com");
+
+    return isSupabase;
   } catch {
     // If URL parsing fails, fall back to string includes
-    return url.includes("supabase.co") || url.includes("supabase.com");
+    const isSupabase =
+      url.includes("supabase.co") || url.includes("supabase.com");
+
+    return isSupabase;
   }
 };

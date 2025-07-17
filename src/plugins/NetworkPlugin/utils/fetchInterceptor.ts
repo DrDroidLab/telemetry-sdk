@@ -1,15 +1,18 @@
 import type { NetworkEvent } from "../types";
+import type { Logger } from "../../../types/Logger";
 import {
   isSupabaseUrl,
   extractQueryParams,
   extractResponseHeaders,
   extractResponseBody,
 } from "./index";
+import { HYPERLOOK_URL } from "../../../constants";
 
 export type FetchInterceptorContext = {
   originalFetch: typeof fetch;
   telemetryEndpoint: string;
   safeCapture: (event: NetworkEvent) => void;
+  logger?: Logger;
 };
 
 export const createFetchInterceptor = (context: FetchInterceptorContext) => {
@@ -31,8 +34,21 @@ export const createFetchInterceptor = (context: FetchInterceptorContext) => {
 
     const method = init?.method || "GET";
 
+    // Filter out requests to the Hyperlook ingestion URL
+    if (url.includes(HYPERLOOK_URL)) {
+      return originalFetch.call(
+        typeof window !== "undefined" ? window : globalThis,
+        input,
+        init
+      );
+    }
+
     try {
-      const response = await originalFetch.call(window, input, init);
+      const response = await originalFetch.call(
+        typeof window !== "undefined" ? window : globalThis,
+        input,
+        init
+      );
       const endTime = performance.now();
       const duration = endTime - startTime;
 
@@ -114,13 +130,23 @@ export const setupFetchInterceptor = (context: FetchInterceptorContext) => {
   const interceptor = createFetchInterceptor(context);
 
   // Store original fetch
-  const originalFetch = window.fetch;
+  const originalFetch =
+    typeof window !== "undefined" ? window.fetch : globalThis.fetch;
 
   // Replace fetch with interceptor
-  window.fetch = interceptor;
+  if (typeof window !== "undefined") {
+    window.fetch = interceptor;
+  } else {
+    // In Node.js, we need to patch the global fetch
+    (globalThis as { fetch: typeof fetch }).fetch = interceptor;
+  }
 
   // Return function to restore original fetch
   return () => {
-    window.fetch = originalFetch;
+    if (typeof window !== "undefined") {
+      window.fetch = originalFetch;
+    } else {
+      (globalThis as { fetch: typeof fetch }).fetch = originalFetch;
+    }
   };
 };

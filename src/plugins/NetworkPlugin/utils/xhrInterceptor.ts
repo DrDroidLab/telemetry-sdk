@@ -5,6 +5,7 @@ import {
   extractXHRResponseHeaders,
   extractXHRResponseBody,
 } from "./index";
+import { HYPERLOOK_URL } from "../../../constants";
 
 export type XHRInterceptorContext = {
   telemetryEndpoint: string;
@@ -27,6 +28,17 @@ export const createXHROpenInterceptor = (context: XHRInterceptorContext) => {
     user?: string | null,
     password?: string | null
   ) {
+    // Filter out requests to the Hyperlook ingestion URL
+    if (typeof url === "string" && url.includes(HYPERLOOK_URL)) {
+      return originalOpen.call(
+        this,
+        method,
+        url,
+        async ?? true,
+        user,
+        password
+      );
+    }
     (this as unknown as Record<string, unknown>)._telemetryMethod = method;
     (this as unknown as Record<string, unknown>)._telemetryUrl =
       typeof url === "string" ? url : String(url);
