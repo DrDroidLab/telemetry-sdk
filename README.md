@@ -482,10 +482,10 @@ The SDK uses a plugin architecture for extensibility. Built-in plugins include:
 Automatically captures page_hit events when someone first visits a page and on client-side navigation in React/Next.js applications. Includes viewport information, browser details, and page metadata. Now supports:
 
 - **Initial page loads**: Captures page view when the page first loads
-- **React Router navigation**: Tracks `pushState` and `replaceState` calls
-- **Next.js client-side routing**: Automatically detects and tracks navigation
+- **React Router navigation**: Safely tracks URL and title changes without interfering with routing
+- **Next.js client-side routing**: Automatically detects and tracks navigation using safe polling
 - **Browser navigation**: Captures back/forward button usage
-- **Duplicate prevention**: Avoids sending multiple events for the same URL
+- **Duplicate prevention**: Avoids sending multiple events for the same URL/title combination
 - **Navigation flag**: Includes `isNavigation` flag to distinguish initial loads from navigation
 
 ### ClickPlugin

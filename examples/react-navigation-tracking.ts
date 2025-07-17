@@ -3,6 +3,7 @@ import { initTelemetry } from "../src/index";
 // Example: React/Next.js Navigation Tracking
 // This example demonstrates how the enhanced PageViewPlugin now captures
 // page view events on client-side navigation in addition to initial page loads
+// The plugin uses a safe polling approach that doesn't interfere with Next.js routing
 
 const telemetry = initTelemetry({
   hyperlookApiKey: "sk_your-api-key", // Replace with your actual API key
@@ -22,10 +23,11 @@ const telemetry = initTelemetry({
 });
 
 console.log("Enhanced page view tracking initialized!");
-console.log("The SDK will now capture page_hit events for:");
-console.log("1. Initial page load");
-console.log("2. React Router navigation (pushState/replaceState)");
-console.log("3. Browser back/forward navigation (popstate)");
+console.log("The plugin will automatically capture navigation events for:");
+console.log("1. Initial page loads");
+console.log("2. React Router navigation (URL/title changes)");
+console.log("3. Next.js client-side routing");
+console.log("4. Browser back/forward navigation (popstate)");
 
 // Simulate React Router navigation (for testing purposes)
 setTimeout(() => {
@@ -60,18 +62,17 @@ setTimeout(() => {
   // Another page_hit event will be captured
 }, 6000);
 
-// The enhanced PageViewPlugin now captures:
-// - eventType: "page"
-// - eventName: "page_hit"
-// - payload: {
-//     viewport: { width, height, devicePixelRatio },
-//     characterSet, language, cookieEnabled, onLine, platform,
-//     userAgent, referrer, url, title, isNavigation: true/false
-//   }
+// Test with Next.js-style navigation (just changing URL and title)
+setTimeout(() => {
+  console.log("Simulating Next.js navigation to /settings...");
 
-// Key improvements:
-// 1. Tracks client-side navigation in React/Next.js apps
-// 2. Prevents duplicate events for the same URL
-// 3. Includes isNavigation flag to distinguish initial loads from navigation
-// 4. Works with React Router, Next.js router, and browser navigation
-// 5. Automatically sends events to Hyperlook for storage and analysis
+  // Simulate Next.js navigation by changing URL and title
+  history.pushState({}, "", "/settings");
+  document.title = "Settings - My App";
+
+  // The plugin will detect both URL and title changes
+}, 8000);
+
+console.log(
+  "Navigation tests will run automatically. Check your Hyperlook dashboard for events!"
+);
