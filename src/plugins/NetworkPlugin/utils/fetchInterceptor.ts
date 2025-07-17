@@ -31,17 +31,25 @@ export const createFetchInterceptor = (context: FetchInterceptorContext) => {
       const duration = endTime - startTime;
 
       if (!telemetryEndpoint || !url.includes(telemetryEndpoint)) {
+        const isSupabaseQuery =
+          url.includes("supabase.co") || url.includes("supabase.com");
+        const eventName = isSupabaseQuery
+          ? "supabase_fetch_complete"
+          : "fetch_complete";
+        const eventType = isSupabaseQuery ? "supabase" : "network";
+
         const evt: NetworkEvent = {
-          eventType: "network",
-          eventName: "fetch",
+          eventType: eventType,
+          eventName: eventName,
           payload: {
             url,
             method,
             status: response.status,
             statusText: response.statusText,
             duration,
-            timestamp: new Date().toISOString(),
-            type: "fetch",
+            startTime,
+            endTime: endTime,
+            isSupabaseQuery,
           },
           timestamp: new Date().toISOString(),
         };
@@ -54,16 +62,24 @@ export const createFetchInterceptor = (context: FetchInterceptorContext) => {
       const duration = endTime - startTime;
 
       if (!telemetryEndpoint || !url.includes(telemetryEndpoint)) {
+        const isSupabaseQuery =
+          url.includes("supabase.co") || url.includes("supabase.com");
+        const eventName = isSupabaseQuery
+          ? "supabase_fetch_error"
+          : "fetch_error";
+        const eventType = isSupabaseQuery ? "supabase" : "network";
+
         const evt: NetworkEvent = {
-          eventType: "network",
-          eventName: "fetch_error",
+          eventType: eventType,
+          eventName: eventName,
           payload: {
             url,
             method,
             error: error instanceof Error ? error.message : String(error),
             duration,
-            timestamp: new Date().toISOString(),
-            type: "fetch",
+            startTime,
+            endTime: endTime,
+            isSupabaseQuery,
           },
           timestamp: new Date().toISOString(),
         };

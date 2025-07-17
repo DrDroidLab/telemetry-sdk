@@ -54,18 +54,25 @@ export const createXHRSendInterceptor = (context: XHRInterceptorContext) => {
       const handler = function (this: XMLHttpRequest) {
         const endTime = performance.now();
         const duration = endTime - startTime;
+        const isSupabaseQuery =
+          url.includes("supabase.co") || url.includes("supabase.com");
+        const eventName = isSupabaseQuery
+          ? "supabase_xhr_complete"
+          : "xhr_complete";
+        const eventType = isSupabaseQuery ? "supabase" : "network";
 
         const evt: NetworkEvent = {
-          eventType: "network",
-          eventName: "xhr",
+          eventType: eventType,
+          eventName: eventName,
           payload: {
             url,
             method,
             status: this.status,
             statusText: this.statusText,
             duration,
-            timestamp: new Date().toISOString(),
-            type: "xhr",
+            startTime,
+            endTime: endTime,
+            isSupabaseQuery,
           },
           timestamp: new Date().toISOString(),
         };

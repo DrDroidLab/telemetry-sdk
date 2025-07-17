@@ -1,4 +1,4 @@
-import type { ConsoleMethod, LogEvent } from "../types";
+import { ConsoleEventName, type ConsoleMethod, type LogEvent } from "../types";
 import { sanitizeConsoleArgs } from "./sanitization";
 import { TELEMETRY_SDK_PREFIX } from "../../../constants";
 
@@ -26,13 +26,43 @@ export const createConsoleInterceptor = (
 
     if (!message.includes(TELEMETRY_SDK_PREFIX)) {
       // 3. emit telemetry event with sanitized data
+      let eventName: ConsoleEventName;
+      switch (method) {
+        case "log":
+          eventName = ConsoleEventName.LOG;
+          break;
+        case "warn":
+          eventName = ConsoleEventName.WARN;
+          break;
+        case "error":
+          eventName = ConsoleEventName.ERROR;
+          break;
+        case "info":
+          eventName = ConsoleEventName.INFO;
+          break;
+        case "debug":
+          eventName = ConsoleEventName.DEBUG;
+          break;
+        default:
+          eventName = ConsoleEventName.LOG;
+      }
+
       const evt: LogEvent = {
-        eventType: "log",
-        eventName: `console.${method}`,
+        eventType: "console",
+        eventName: eventName,
         payload: {
-          method,
-          args: sanitizedArgs,
-          originalArgsCount: args.length,
+          message: sanitizedArgs.join(" "),
+          args: sanitizedArgs.map(arg => {
+            if (typeof arg === "object") {
+              try {
+                return JSON.stringify(arg);
+              } catch {
+                return String(arg);
+              }
+            }
+            return String(arg);
+          }),
+          stack: new Error().stack?.split("\n").slice(2, 7) || [],
         },
         timestamp: new Date().toISOString(),
       };

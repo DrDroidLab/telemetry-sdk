@@ -47,8 +47,8 @@ export class PerformancePlugin extends BasePlugin {
       const allMetrics = { ...navigationMetrics, ...webVitals };
 
       const evt: PageLoadMetricsEvent = {
-        eventType: "performance",
-        eventName: "page_load_metrics",
+        eventType: "page",
+        eventName: "page_load",
         payload: allMetrics,
         timestamp: new Date().toISOString(),
       };

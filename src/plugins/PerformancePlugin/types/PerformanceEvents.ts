@@ -23,8 +23,8 @@ export type LayoutShiftEvent = {
 };
 
 export type PageLoadMetricsEvent = {
-  eventType: "performance";
-  eventName: "page_load_metrics";
+  eventType: "page";
+  eventName: "page_load";
   payload: PerformanceMetrics;
   timestamp: string;
 };

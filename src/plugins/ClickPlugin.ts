@@ -20,25 +20,57 @@ export class ClickPlugin extends BasePlugin {
       const tgt = target;
 
       // Safely extract text content with null checks
-      let textContent: string | null = null;
-      try {
-        textContent = tgt.textContent?.trim().slice(0, 50) || null;
-      } catch (error) {
-        this.logger.debug("Failed to extract text content", {
-          error: error instanceof Error ? error.message : String(error),
-        });
-      }
+      // Removed unused textContent extraction and try-catch block
+
+      const rect = tgt.getBoundingClientRect();
 
       const evt: TelemetryEvent = {
         eventType: "interaction",
         eventName: "click",
         payload: {
-          tag: tgt.tagName || "unknown",
-          id: tgt.id || null,
-          classes: tgt.className || null,
-          text: textContent,
-          x: e.clientX,
-          y: e.clientY,
+          element: {
+            tagName: tgt.tagName,
+            id: tgt.id || null,
+            className: tgt.className || null,
+            textContent: tgt.textContent?.slice(0, 100) || null,
+            href: (tgt as HTMLAnchorElement).href || null,
+            type: (tgt as HTMLInputElement).type || null,
+            value: (tgt as HTMLInputElement).value || null,
+            placeholder: (tgt as HTMLInputElement).placeholder || null,
+            role: tgt.getAttribute("role") || null,
+            ariaLabel: tgt.getAttribute("aria-label") || null,
+            dataAttributes: Object.fromEntries(
+              Array.from(tgt.attributes)
+                .filter(attr => attr.name.startsWith("data-"))
+                .map(attr => [attr.name, attr.value])
+            ),
+          },
+          position: {
+            x: e.clientX,
+            y: e.clientY,
+            pageX: e.pageX,
+            pageY: e.pageY,
+            screenX: e.screenX,
+            screenY: e.screenY,
+          },
+          boundingRect: {
+            top: rect.top,
+            left: rect.left,
+            width: rect.width,
+            height: rect.height,
+          },
+          event: {
+            button: e.button,
+            buttons: e.buttons,
+            ctrlKey: e.ctrlKey,
+            shiftKey: e.shiftKey,
+            altKey: e.altKey,
+            metaKey: e.metaKey,
+            type: e.type,
+            timestamp: e.timeStamp,
+          },
+          scrollX: window.scrollX,
+          scrollY: window.scrollY,
         },
         timestamp: new Date().toISOString(),
       };
