@@ -1,6 +1,6 @@
 {
   "name": "@jayeshsadhwani/telemetry-sdk",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "description": "A lightweight, configurable telemetry tracking library for JavaScript/TypeScript applications with comprehensive error handling, event batching, and graceful degradation",
   "main": "dist/index.js",
   "module": "dist/index.esm.js",
