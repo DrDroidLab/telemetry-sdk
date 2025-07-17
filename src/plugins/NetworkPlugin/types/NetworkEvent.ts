@@ -1,8 +1,8 @@
 export type NetworkEventPayload = {
   url: string;
   method: string;
-  status?: number;
-  statusText?: string;
+  responseStatus?: number;
+  responseStatusText?: string;
   error?: string;
   duration: number;
   startTime: number;
