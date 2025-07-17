@@ -1,62 +1,16 @@
 import type { NetworkEvent } from "../types";
+import {
+  isSupabaseUrl,
+  extractQueryParams,
+  extractXHRResponseHeaders,
+  extractXHRResponseBody,
+} from "./index";
 
 export type XHRInterceptorContext = {
   telemetryEndpoint: string;
   safeCapture: (event: NetworkEvent) => void;
   xhrHandlers: WeakMap<XMLHttpRequest, () => void>;
   patchedXHRs: Set<XMLHttpRequest>;
-};
-
-// Helper function to extract query parameters from URL
-const extractQueryParams = (url: string): Record<string, string> => {
-  try {
-    const urlObj = new URL(
-      url,
-      typeof window !== "undefined" ? window.location.origin : ""
-    );
-    const params: Record<string, string> = {};
-    urlObj.searchParams.forEach((value, key) => {
-      params[key] = value;
-    });
-    return params;
-  } catch {
-    return {};
-  }
-};
-
-// Helper function to extract response headers
-const extractResponseHeaders = (
-  xhr: XMLHttpRequest
-): Record<string, string> => {
-  const headers: Record<string, string> = {};
-  try {
-    const headerString = xhr.getAllResponseHeaders();
-    if (headerString) {
-      headerString.split("\r\n").forEach(line => {
-        const [key, value] = line.split(": ");
-        if (key && value) {
-          headers[key.toLowerCase()] = value;
-        }
-      });
-    }
-  } catch {
-    // Ignore header extraction errors
-  }
-  return headers;
-};
-
-// Helper function to extract response body
-const extractResponseBody = (xhr: XMLHttpRequest): unknown => {
-  try {
-    const responseText = xhr.responseText;
-    if (responseText) {
-      return JSON.parse(responseText);
-    }
-  } catch {
-    // If JSON parsing fails, return the raw text
-    return xhr.responseText;
-  }
-  return null;
 };
 
 export const createXHROpenInterceptor = (context: XHRInterceptorContext) => {
@@ -103,11 +57,18 @@ export const createXHRSendInterceptor = (context: XHRInterceptorContext) => {
       ._telemetryUrl as string;
 
     if (!telemetryEndpoint || !url.includes(telemetryEndpoint)) {
-      const handler = function (this: XMLHttpRequest) {
+      const isSupabaseQuery = isSupabaseUrl(url);
+
+      // Track if we've already captured an event for this XHR to prevent duplicates
+      let eventCaptured = false;
+
+      // Success handler
+      const successHandler = function (this: XMLHttpRequest) {
+        if (eventCaptured) return; // Prevent duplicate events
+        eventCaptured = true;
+
         const endTime = performance.now();
         const duration = endTime - startTime;
-        const isSupabaseQuery =
-          url.includes("supabase.co") || url.includes("supabase.com");
         const eventName = isSupabaseQuery
           ? "supabase_xhr_complete"
           : "xhr_complete";
@@ -122,8 +83,8 @@ export const createXHRSendInterceptor = (context: XHRInterceptorContext) => {
             queryParams: extractQueryParams(url),
             responseStatus: this.status,
             responseStatusText: this.statusText,
-            responseHeaders: extractResponseHeaders(this),
-            responseBody: extractResponseBody(this),
+            responseHeaders: extractXHRResponseHeaders(this),
+            responseBody: extractXHRResponseBody(this),
             duration,
             startTime,
             endTime: endTime,
@@ -133,13 +94,87 @@ export const createXHRSendInterceptor = (context: XHRInterceptorContext) => {
         };
 
         safeCapture(evt);
+        cleanup();
+      };
+
+      // Error handler
+      const errorHandler = function (this: XMLHttpRequest) {
+        if (eventCaptured) return; // Prevent duplicate events
+        eventCaptured = true;
+
+        const endTime = performance.now();
+        const duration = endTime - startTime;
+        const eventName = isSupabaseQuery ? "supabase_xhr_error" : "xhr_error";
+        const eventType = isSupabaseQuery ? "supabase" : "network";
+
+        const evt: NetworkEvent = {
+          eventType: eventType,
+          eventName: eventName,
+          payload: {
+            url,
+            method,
+            queryParams: extractQueryParams(url),
+            responseStatus: this.status,
+            responseStatusText: this.statusText,
+            error: "XHR request failed",
+            duration,
+            startTime,
+            endTime: endTime,
+            isSupabaseQuery,
+          },
+          timestamp: new Date().toISOString(),
+        };
+
+        safeCapture(evt);
+        cleanup();
+      };
+
+      // Abort handler (treat as error)
+      const abortHandler = function (this: XMLHttpRequest) {
+        if (eventCaptured) return; // Prevent duplicate events
+        eventCaptured = true;
+
+        const endTime = performance.now();
+        const duration = endTime - startTime;
+        const eventName = isSupabaseQuery ? "supabase_xhr_error" : "xhr_error";
+        const eventType = isSupabaseQuery ? "supabase" : "network";
+
+        const evt: NetworkEvent = {
+          eventType: eventType,
+          eventName: eventName,
+          payload: {
+            url,
+            method,
+            queryParams: extractQueryParams(url),
+            responseStatus: this.status,
+            responseStatusText: this.statusText,
+            error: "XHR request aborted",
+            duration,
+            startTime,
+            endTime: endTime,
+            isSupabaseQuery,
+          },
+          timestamp: new Date().toISOString(),
+        };
+
+        safeCapture(evt);
+        cleanup();
+      };
+
+      // Cleanup function
+      const cleanup = () => {
+        this.removeEventListener("load", successHandler);
+        this.removeEventListener("error", errorHandler);
+        this.removeEventListener("abort", abortHandler);
         xhrHandlers.delete(this);
       };
 
-      this.addEventListener("load", handler);
-      this.addEventListener("error", handler);
-      this.addEventListener("abort", handler);
-      xhrHandlers.set(this, handler);
+      // Store handlers for later cleanup
+      xhrHandlers.set(this, cleanup);
+
+      this.addEventListener("load", successHandler);
+      this.addEventListener("error", errorHandler);
+      this.addEventListener("abort", abortHandler);
     }
 
     return originalSend.call(this, body);

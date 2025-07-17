@@ -443,6 +443,10 @@ The SDK requires a Hyperlook API key to be provided:
 | `PAGE_HIT`                    | `page_hit`                    | viewport, characterSet, language, cookieEnabled, onLine, platform, userAgent, referrer, url, title                                         |
 | `XHR_COMPLETE`                | `xhr_complete`                | url, method, queryParams, responseStatus, responseStatusText, responseHeaders, responseBody, duration, startTime, endTime, isSupabaseQuery |
 | `FETCH_COMPLETE`              | `fetch_complete`              | url, method, queryParams, responseStatus, responseStatusText, responseHeaders, responseBody, duration, startTime, endTime, isSupabaseQuery |
+| `SUPABASE_XHR_COMPLETE`       | `supabase_xhr_complete`       | url, method, queryParams, responseStatus, responseStatusText, responseHeaders, responseBody, duration, startTime, endTime, isSupabaseQuery |
+| `SUPABASE_FETCH_COMPLETE`     | `supabase_fetch_complete`     | url, method, queryParams, responseStatus, responseStatusText, responseHeaders, responseBody, duration, startTime, endTime, isSupabaseQuery |
+| `SUPABASE_XHR_ERROR`          | `supabase_xhr_error`          | url, method, queryParams, error, duration, startTime, endTime, isSupabaseQuery                                                             |
+| `SUPABASE_FETCH_ERROR`        | `supabase_fetch_error`        | url, method, queryParams, error, duration, startTime, endTime, isSupabaseQuery                                                             |
 | `JAVASCRIPT_ERROR`            | `javascript_error`            | message, filename, lineno, colno, error, stack                                                                                             |
 | `UNHANDLED_PROMISE_REJECTION` | `unhandled_promise_rejection` | reason, promise                                                                                                                            |
 
@@ -498,7 +502,34 @@ Intercepts and tracks console.log, console.error, etc.
 
 ### NetworkPlugin
 
-Monitors fetch and XMLHttpRequest calls.
+Monitors fetch and XMLHttpRequest calls with automatic Supabase detection and differentiation.
+
+**Features:**
+
+- **Automatic Supabase Detection**: Automatically detects requests to Supabase endpoints (URLs containing "supabase.co" or "supabase.com")
+- **Event Differentiation**: Sends separate event types for Supabase vs regular network requests
+- **Complete Request Tracking**: Captures both successful and failed requests
+- **Rich Metadata**: Includes response status, headers, body, timing, and query parameters
+
+**Event Types:**
+
+- **Supabase Events**: `supabase_fetch_complete`, `supabase_fetch_error`, `supabase_xhr_complete`, `supabase_xhr_error`
+- **Regular Network Events**: `fetch_complete`, `fetch_error`, `xhr_complete`, `xhr_error`
+
+**Event Properties:**
+
+- `url`: Request URL
+- `method`: HTTP method (GET, POST, etc.)
+- `queryParams`: URL query parameters
+- `responseStatus`: HTTP status code
+- `responseStatusText`: HTTP status text
+- `responseHeaders`: Response headers
+- `responseBody`: Response body (when available)
+- `duration`: Request duration in milliseconds
+- `startTime`: Request start timestamp
+- `endTime`: Request end timestamp
+- `isSupabaseQuery`: Boolean flag indicating if it's a Supabase request
+- `error`: Error message (for failed requests)
 
 ### ErrorPlugin
 

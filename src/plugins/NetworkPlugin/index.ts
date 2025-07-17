@@ -160,15 +160,14 @@ export class NetworkPlugin extends BasePlugin {
       let cleanedCount = 0;
       this.patchedXHRs.forEach(xhr => {
         try {
-          const handler = this.xhrHandlers.get(xhr);
-          if (handler) {
-            xhr.removeEventListener("load", handler);
-            xhr.removeEventListener("error", handler);
-            xhr.removeEventListener("abort", handler);
+          const cleanup = this.xhrHandlers.get(xhr);
+          if (cleanup) {
+            // Call the cleanup function to remove event listeners
+            cleanup();
             cleanedCount++;
           }
         } catch (error) {
-          this.logger.debug("Failed to remove XHR event listener", {
+          this.logger.debug("Failed to cleanup XHR handler", {
             error: error instanceof Error ? error.message : String(error),
           });
         }

@@ -1,59 +1,15 @@
 import type { NetworkEvent } from "../types";
+import {
+  isSupabaseUrl,
+  extractQueryParams,
+  extractResponseHeaders,
+  extractResponseBody,
+} from "./index";
 
 export type FetchInterceptorContext = {
   originalFetch: typeof fetch;
   telemetryEndpoint: string;
   safeCapture: (event: NetworkEvent) => void;
-};
-
-// Helper function to extract query parameters from URL
-const extractQueryParams = (url: string): Record<string, string> => {
-  try {
-    const urlObj = new URL(
-      url,
-      typeof window !== "undefined" ? window.location.origin : ""
-    );
-    const params: Record<string, string> = {};
-    urlObj.searchParams.forEach((value, key) => {
-      params[key] = value;
-    });
-    return params;
-  } catch {
-    return {};
-  }
-};
-
-// Helper function to extract response headers
-const extractResponseHeaders = (response: Response): Record<string, string> => {
-  const headers: Record<string, string> = {};
-  try {
-    response.headers.forEach((value, key) => {
-      headers[key.toLowerCase()] = value;
-    });
-  } catch {
-    // Ignore header extraction errors
-  }
-  return headers;
-};
-
-// Helper function to extract response body
-const extractResponseBody = async (response: Response): Promise<unknown> => {
-  try {
-    const clone = response.clone(); // Clone to avoid consuming the response
-    const text = await clone.text();
-    if (text) {
-      return JSON.parse(text);
-    }
-  } catch {
-    // If JSON parsing fails, return the raw text
-    try {
-      const clone = response.clone();
-      return await clone.text();
-    } catch {
-      return null;
-    }
-  }
-  return null;
 };
 
 export const createFetchInterceptor = (context: FetchInterceptorContext) => {
@@ -81,8 +37,7 @@ export const createFetchInterceptor = (context: FetchInterceptorContext) => {
       const duration = endTime - startTime;
 
       if (!telemetryEndpoint || !url.includes(telemetryEndpoint)) {
-        const isSupabaseQuery =
-          url.includes("supabase.co") || url.includes("supabase.com");
+        const isSupabaseQuery = isSupabaseUrl(url);
         const eventName = isSupabaseQuery
           ? "supabase_fetch_complete"
           : "fetch_complete";
@@ -115,8 +70,7 @@ export const createFetchInterceptor = (context: FetchInterceptorContext) => {
       const duration = endTime - startTime;
 
       if (!telemetryEndpoint || !url.includes(telemetryEndpoint)) {
-        const isSupabaseQuery =
-          url.includes("supabase.co") || url.includes("supabase.com");
+        const isSupabaseQuery = isSupabaseUrl(url);
         const eventName = isSupabaseQuery
           ? "supabase_fetch_error"
           : "fetch_error";
