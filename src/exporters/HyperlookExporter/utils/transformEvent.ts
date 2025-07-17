@@ -4,12 +4,19 @@ import { generateEventId } from "./generateEventId";
 import { limitPropertiesSize } from "./limitPropertiesSize";
 
 export function transformEvent(event: TelemetryEvent): HyperlookEvent {
+  // Ensure payload is properly handled - limitPropertiesSize will always return at least a message
+  const payload = event.payload || {};
+  const limitedProperties = limitPropertiesSize(payload);
+
+  // Properties should never be null since limitPropertiesSize ensures at least a message field
+  const properties = limitedProperties;
+
   const transformed: HyperlookEvent = {
     event_id: generateEventId(),
     event_type: event.eventType,
     event_name: event.eventName,
-    properties: limitPropertiesSize(event.payload || {}),
-    user_properties: {}, // Can be extended later if needed
+    properties: properties,
+    user_properties: null, // Set to null instead of empty object
     timestamp: event.timestamp,
   };
 

@@ -5,8 +5,8 @@ export type HyperlookEvent = {
   session_id?: string;
   event_type: string;
   event_name: string;
-  properties?: Record<string, unknown>;
-  user_properties?: Record<string, unknown>;
+  properties?: Record<string, unknown> | null;
+  user_properties?: Record<string, unknown> | null;
   page_url?: string;
   page_title?: string;
   referrer?: string;

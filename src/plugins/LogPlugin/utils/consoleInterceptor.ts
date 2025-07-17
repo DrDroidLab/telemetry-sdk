@@ -47,21 +47,34 @@ export const createConsoleInterceptor = (
           eventName = ConsoleEventName.LOG;
       }
 
+      // Ensure we have meaningful payload data even for empty console calls
+      let payloadMessage =
+        message.trim() || `[${method.toUpperCase()}] No message provided`;
+      const payloadArgs =
+        sanitizedArgs.length > 0
+          ? sanitizedArgs.map(arg => {
+              if (typeof arg === "object") {
+                try {
+                  return JSON.stringify(arg);
+                } catch {
+                  return String(arg);
+                }
+              }
+              return String(arg);
+            })
+          : [`[${method.toUpperCase()}] No arguments provided`];
+
+      // Ensure the message is never empty or just whitespace
+      if (!payloadMessage || payloadMessage.trim() === "") {
+        payloadMessage = `[${method.toUpperCase()}] Empty message`;
+      }
+
       const evt: LogEvent = {
         eventType: "console",
         eventName: eventName,
         payload: {
-          message: sanitizedArgs.join(" "),
-          args: sanitizedArgs.map(arg => {
-            if (typeof arg === "object") {
-              try {
-                return JSON.stringify(arg);
-              } catch {
-                return String(arg);
-              }
-            }
-            return String(arg);
-          }),
+          message: payloadMessage,
+          args: payloadArgs,
           stack: new Error().stack?.split("\n").slice(2, 7) || [],
         },
         timestamp: new Date().toISOString(),
