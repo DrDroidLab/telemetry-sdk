@@ -2,6 +2,56 @@
 
 A lightweight, configurable telemetry tracking library for JavaScript/TypeScript applications with comprehensive error handling, event batching, and graceful degradation.
 
+## 📦 Installation Instructions for NextJS
+
+### Quick Setup
+
+1. **Create a client component** for telemetry initialization:
+
+```tsx
+"use client";
+
+import { useEffect } from "react";
+import { initTelemetry } from "telemetry-sdk";
+
+function TelemetryProvider() {
+  useEffect(() => {
+    let telemetry = initTelemetry({});
+
+    return () => {
+      telemetry.destroy();
+    };
+  }, []);
+
+  return null;
+}
+
+export default TelemetryProvider;
+```
+
+2. **Add it to your layout.tsx**:
+
+```tsx
+import TelemetryProvider from "./TelemetryProvider";
+
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  return (
+    <html lang="en">
+      <body>
+        <TelemetryProvider />
+        {children}
+      </body>
+    </html>
+  );
+}
+```
+
+That's it! The telemetry SDK will automatically start collecting data once the component mounts.
+
 ## 🚀 Features
 
 - **Event Batching**: Efficiently batches events for optimal network performance
