@@ -17,6 +17,7 @@ A lightweight, configurable telemetry tracking library for JavaScript/TypeScript
 - **Custom Events**: Capture user-defined events with flexible payloads
 - **Session Tracking**: Automatic session ID generation and tracking
 - **Input Validation**: Comprehensive validation and sanitization of all user data
+- **Automatic Shutdown**: Ensures events are flushed when the application closes (browser unload, Node.js process termination)
 
 ## 📦 Installation
 
@@ -94,7 +95,27 @@ const telemetry = initTelemetry({
 
 ### `initTelemetry(config?: TelemetryConfig): TelemetryManager`
 
-Initializes the telemetry SDK with the provided configuration.
+Initializes the telemetry SDK with the provided configuration. **Automatically sets up shutdown handlers** to ensure events are flushed when the application closes.
+
+#### Automatic Shutdown Handling
+
+The SDK automatically registers shutdown handlers when initialized:
+
+**Browser Environment:**
+
+- `beforeunload` event: Flushes events when the page is about to unload
+- `pagehide` event: Flushes events when the page is hidden (mobile browsers, tab switching)
+- `visibilitychange` event: Flushes events when the page becomes hidden (with 1-second delay to avoid unnecessary flushes)
+
+**Node.js Environment:**
+
+- `SIGTERM` signal: Graceful shutdown when the process receives termination signal
+- `SIGINT` signal: Graceful shutdown when the process receives interrupt signal (Ctrl+C)
+- `uncaughtException`: Shutdown on uncaught exceptions
+- `unhandledRejection`: Shutdown on unhandled promise rejections
+- `exit` event: Force cleanup when the process exits
+
+This ensures that telemetry data is not lost even if developers forget to manually call `shutdown()`.
 
 #### Configuration Options
 
@@ -142,6 +163,11 @@ Gracefully shuts down the telemetry manager, flushing any remaining events.
 // Before your app closes
 await telemetry.shutdown();
 ```
+
+**Note:** The SDK automatically sets up shutdown handlers when initialized, so events will be flushed even if you don't manually call `shutdown()`. This includes:
+
+- Browser: `beforeunload` and `pagehide` events
+- Node.js: `SIGTERM`, `SIGINT`, `uncaughtException`, and `unhandledRejection` events
 
 #### `destroy(): void`
 
