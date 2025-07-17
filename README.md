@@ -2,22 +2,32 @@
 
 A lightweight, configurable telemetry tracking library for JavaScript/TypeScript applications with comprehensive error handling, event batching, and graceful degradation.
 
-## 📦 Installation Instructions for NextJS
+## 📦 Installation
 
-### Quick Setup
+```bash
+npm install @jayeshsadhwani/telemetry-sdk
+# or
+yarn add @jayeshsadhwani/telemetry-sdk
+# or
+pnpm add @jayeshsadhwani/telemetry-sdk
+```
 
-1. **Create a client component** for telemetry initialization:
+## 🚀 Quick Start
+
+### Next.js Applications
+
+Create a client component for telemetry initialization:
 
 ```tsx
 "use client";
 
 import { useEffect } from "react";
-import { initTelemetry } from "telemetry-sdk";
+import { initTelemetry } from "@jayeshsadhwani/telemetry-sdk";
 
 function TelemetryProvider() {
   useEffect(() => {
     let telemetry = initTelemetry({
-      apiKey: "your-api-key", // Replace with your Hyperlook API key
+      hyperlookApiKey: "your-api-key", // Replace with your Hyperlook API key
     });
 
     return () => {
@@ -31,7 +41,7 @@ function TelemetryProvider() {
 export default TelemetryProvider;
 ```
 
-2. **Add it to your layout.tsx**:
+Then add it to your `layout.{tsx,jsx,ts,js}`:
 
 ```tsx
 import TelemetryProvider from "./TelemetryProvider";
@@ -54,43 +64,47 @@ export default function RootLayout({
 
 That's it! The telemetry SDK will automatically start collecting data once the component mounts.
 
-## 🚀 Features
+### React Applications
 
-- **Event Batching**: Efficiently batches events for optimal network performance
-- **Error Boundaries**: Comprehensive error handling with graceful degradation
-- **Plugin Architecture**: Modular design with built-in plugins for common use cases
-- **Type Safety**: Full TypeScript support with strict type checking
-- **Environment Detection**: Automatic detection of browser vs Node.js environments
-- **Performance Monitoring**: Built-in performance metrics collection
-- **Network Monitoring**: Automatic HTTP request tracking
-- **Console Logging**: Intercepts and tracks console logs with XSS protection
-- **User Interactions**: Captures click events and user interactions
-- **User Identification**: Track user identity with traits and session management
-- **Custom Events**: Capture user-defined events with flexible payloads
-- **Session Tracking**: Automatic session ID generation and tracking
-- **Input Validation**: Comprehensive validation and sanitization of all user data
-- **Automatic Shutdown**: Ensures events are flushed when the application closes (browser unload, Node.js process termination)
+```tsx
+// In your main App component or entry point
+import { useEffect } from "react";
+import { initTelemetry } from "@jayeshsadhwani/telemetry-sdk";
 
-## 📦 Installation
+function App() {
+  useEffect(() => {
+    // Initialize telemetry once when the app starts
+    const telemetry = initTelemetry({
+      hyperlookApiKey: "your-api-key", // Replace with your Hyperlook API key
+      enableClicks: true,
+      enableLogs: true,
+      enableNetwork: true,
+      enablePerformance: true,
+    });
 
-```bash
-npm install telemetry-sdk
-# or
-yarn add telemetry-sdk
-# or
-pnpm add telemetry-sdk
+    // Optional: Identify the user
+    telemetry.identify("user-123", {
+      name: "John Doe",
+      email: "john@example.com",
+    });
+
+    // The SDK automatically sets up shutdown handlers, so no cleanup needed
+  }, []);
+
+  return <div>{/* Your app content */}</div>;
+}
+
+export default App;
 ```
 
-## 🎯 Quick Start
-
-### Basic Usage
+### Basic Usage (Any JavaScript/TypeScript Application)
 
 ```typescript
-import { initTelemetry } from "telemetry-sdk";
+import { initTelemetry } from "@jayeshsadhwani/telemetry-sdk";
 
 // Initialize with default configuration
 const telemetry = initTelemetry({
-  endpoint: "https://your-api.com/telemetry",
+  hyperlookApiKey: "your-api-key", // Replace with your Hyperlook API key
   enableClicks: true,
   enableLogs: true,
   enableNetwork: true,
@@ -107,13 +121,13 @@ telemetry.identify("user-123", {
 // The SDK automatically starts collecting telemetry data
 ```
 
-### Advanced Configuration
+## 🎯 Advanced Configuration
 
 ```typescript
-import { initTelemetry } from "telemetry-sdk";
+import { initTelemetry } from "@jayeshsadhwani/telemetry-sdk";
 
 const telemetry = initTelemetry({
-  endpoint: "https://your-api.com/telemetry",
+  hyperlookApiKey: "your-api-key", // Replace with your Hyperlook API key
 
   // Event batching configuration
   batchSize: 50, // Number of events to batch before sending
@@ -171,22 +185,22 @@ This ensures that telemetry data is not lost even if developers forget to manual
 
 #### Configuration Options
 
-| Option               | Type           | Default                      | Description                                |
-| -------------------- | -------------- | ---------------------------- | ------------------------------------------ |
-| `endpoint`           | `string`       | `"https://httpbin.org/post"` | The endpoint URL to send telemetry data to |
-| `batchSize`          | `number`       | `50`                         | Number of events to batch before sending   |
-| `flushInterval`      | `number`       | `30000`                      | Flush interval in milliseconds             |
-| `maxRetries`         | `number`       | `3`                          | Maximum number of retry attempts           |
-| `retryDelay`         | `number`       | `1000`                       | Delay between retries in milliseconds      |
-| `samplingRate`       | `number`       | `1.0`                        | Sampling rate (0.0 to 1.0)                 |
-| `enableClicks`       | `boolean`      | `true`                       | Enable click event tracking                |
-| `enableLogs`         | `boolean`      | `true`                       | Enable console log tracking                |
-| `enableNetwork`      | `boolean`      | `true`                       | Enable network request tracking            |
-| `enablePerformance`  | `boolean`      | `true`                       | Enable performance metrics tracking        |
-| `enableCustomEvents` | `boolean`      | `false`                      | Enable custom events plugin                |
-| `sessionId`          | `string`       | Auto-generated               | Custom session ID for tracking             |
-| `userId`             | `string`       | `undefined`                  | Initial user ID for identification         |
-| `logging`            | `LoggerConfig` | `{}`                         | Logging configuration                      |
+| Option               | Type           | Default        | Description                              |
+| -------------------- | -------------- | -------------- | ---------------------------------------- |
+| `hyperlookApiKey`    | `string`       | Required       | Your Hyperlook API key                   |
+| `batchSize`          | `number`       | `50`           | Number of events to batch before sending |
+| `flushInterval`      | `number`       | `30000`        | Flush interval in milliseconds           |
+| `maxRetries`         | `number`       | `3`            | Maximum number of retry attempts         |
+| `retryDelay`         | `number`       | `1000`         | Delay between retries in milliseconds    |
+| `samplingRate`       | `number`       | `1.0`          | Sampling rate (0.0 to 1.0)               |
+| `enableClicks`       | `boolean`      | `true`         | Enable click event tracking              |
+| `enableLogs`         | `boolean`      | `true`         | Enable console log tracking              |
+| `enableNetwork`      | `boolean`      | `true`         | Enable network request tracking          |
+| `enablePerformance`  | `boolean`      | `true`         | Enable performance metrics tracking      |
+| `enableCustomEvents` | `boolean`      | `false`        | Enable custom events plugin              |
+| `sessionId`          | `string`       | Auto-generated | Custom session ID for tracking           |
+| `userId`             | `string`       | `undefined`    | Initial user ID for identification       |
+| `logging`            | `LoggerConfig` | `{}`           | Logging configuration                    |
 
 ### TelemetryManager Methods
 
@@ -310,7 +324,7 @@ The SDK supports user identification through the `identify()` method, which crea
 ```typescript
 // Initialize with custom events enabled
 const telemetry = initTelemetry({
-  endpoint: "https://your-api.com/telemetry",
+  hyperlookApiKey: "your-api-key",
   enableCustomEvents: true,
   sessionId: "custom-session-123", // Optional: provide custom session ID
   userId: "user-456", // Optional: provide initial user ID
@@ -376,119 +390,46 @@ telemetry.capture({
 // - userId: "user-789" (if identified)
 ```
 
+## 🚀 Features
+
+- **Event Batching**: Efficiently batches events for optimal network performance
+- **Error Boundaries**: Comprehensive error handling with graceful degradation
+- **Plugin Architecture**: Modular design with built-in plugins for common use cases
+- **Type Safety**: Full TypeScript support with strict type checking
+- **Environment Detection**: Automatic detection of browser vs Node.js environments
+- **Performance Monitoring**: Built-in performance metrics collection
+- **Network Monitoring**: Automatic HTTP request tracking
+- **Console Logging**: Intercepts and tracks console logs with XSS protection
+- **User Interactions**: Captures click events and user interactions
+- **User Identification**: Track user identity with traits and session management
+- **Custom Events**: Capture user-defined events with flexible payloads
+- **Session Tracking**: Automatic session ID generation and tracking
+- **Input Validation**: Comprehensive validation and sanitization of all user data
+- **Automatic Shutdown**: Ensures events are flushed when the application closes (browser unload, Node.js process termination)
+
 ## 📊 Event Types
 
-The SDK automatically captures several types of events:
+The SDK automatically captures various types of events:
 
-### Click Events (`interaction/click`)
+### Automatic Events
 
-```typescript
-{
-  eventType: 'interaction',
-  eventName: 'click',
-  payload: {
-    tag: 'BUTTON',
-    id: 'submit-button',
-    classes: 'btn btn-primary',
-    text: 'Submit',
-    x: 150,
-    y: 200,
-  },
-  timestamp: '2024-01-01T12:00:00.000Z',
-}
-```
+- **Click Events**: User interactions with DOM elements
+- **Network Events**: HTTP requests and responses (fetch, XHR)
+- **Performance Events**: Page load metrics, Core Web Vitals, long tasks
+- **Log Events**: Console logs (log, warn, error, info, debug)
+- **Error Events**: JavaScript errors and exceptions
 
-### Console Log Events (`log/console.*`)
+### Custom Events
+
+Enables capturing custom events with user-defined types, names, and payloads. Must be enabled via `enableCustomEvents: true` in the configuration.
 
 ```typescript
-{
-  eventType: 'log',
-  eventName: 'console.error',
-  payload: {
-    method: 'error',
-    args: ['["User not found"]'],
-  },
-  timestamp: '2024-01-01T12:00:00.000Z',
-}
-```
-
-### Network Events (`network/fetch`, `network/xhr`)
-
-```typescript
-{
-  eventType: 'network',
-  eventName: 'fetch',
-  payload: {
-    url: 'https://api.example.com/users',
-    method: 'GET',
-    status: 200,
-    statusText: 'OK',
-    duration: 150.5,
-    timestamp: '2024-01-01T12:00:00.000Z',
-    type: 'fetch',
-  },
-  timestamp: '2024-01-01T12:00:00.000Z',
-}
-```
-
-### Performance Events (`performance/page_load_metrics`)
-
-```typescript
-{
-  eventType: 'performance',
-  eventName: 'page_load_metrics',
-  payload: {
-    totalPageLoadTime: 2500,
-    dnsTime: 50,
-    tcpTime: 100,
-    requestTime: 200,
-    responseTime: 150,
-    domParsingTime: 500,
-    resourceCount: 25,
-    ttfb: 300,
-    fcp: 1200,
-    lcp: 1800,
-  },
-  timestamp: '2024-01-01T12:00:00.000Z',
-}
-```
-
-### Identify Events (`identify/user_identified`)
-
-```typescript
-{
-  eventType: 'identify',
-  eventName: 'user_identified',
-  payload: {
-    userId: 'user-123',
-    traits: {
-      name: 'John Doe',
-      email: 'john@example.com',
-      plan: 'premium',
-    },
-  },
-  timestamp: '2024-01-01T12:00:00.000Z',
-  sessionId: 'session_1234567890_abc123def',
-  userId: 'user-123',
-}
-```
-
-### Custom Events (User-defined)
-
-```typescript
-{
-  eventType: 'ecommerce', // User-defined
-  eventName: 'product_viewed', // User-defined
-  payload: {
-    productId: 'prod_123',
-    productName: 'Wireless Headphones',
-    category: 'Electronics',
-    price: 99.99,
-    currency: 'USD',
-  },
-  timestamp: '2024-01-01T12:00:00.000Z',
-  sessionId: 'session_1234567890_abc123def',
-  userId: 'user-123',
+const customPlugin = telemetry.getCustomEventsPlugin();
+if (customPlugin) {
+  customPlugin.captureCustomEvent("ecommerce", "purchase", {
+    productId: "prod_123",
+    amount: 99.99,
+  });
 }
 ```
 
@@ -524,39 +465,6 @@ if (customPlugin) {
     amount: 99.99,
   });
 }
-```
-
-### Creating Custom Plugins
-
-```typescript
-import { BasePlugin } from "telemetry-sdk";
-
-class CustomPlugin extends BasePlugin {
-  protected setup(): void {
-    // Your setup logic here
-    window.addEventListener("scroll", this.handleScroll.bind(this));
-  }
-
-  private handleScroll(event: Event): void {
-    this.safeCapture({
-      eventType: "interaction",
-      eventName: "scroll",
-      payload: {
-        scrollY: window.scrollY,
-        scrollX: window.scrollX,
-      },
-      timestamp: new Date().toISOString(),
-    });
-  }
-
-  teardown(): void {
-    // Cleanup logic
-    window.removeEventListener("scroll", this.handleScroll.bind(this));
-  }
-}
-
-// Register your custom plugin
-telemetry.register(new CustomPlugin());
 ```
 
 ## 🛡️ Error Handling
@@ -608,37 +516,9 @@ Failed events are automatically cleaned up to prevent memory leaks.
 - No data is stored locally beyond the current session
 - Failed events are automatically cleaned up
 
-## 🧪 Development
-
-### Building
-
-```bash
-npm run build
-```
-
-### Development Mode
-
-```bash
-npm run dev
-```
-
-### Testing
-
-```bash
-npm test
-```
-
 ## 📄 License
 
 ISC
-
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests
-5. Submit a pull request
 
 ## 📞 Support
 

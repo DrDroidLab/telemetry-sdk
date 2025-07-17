@@ -1,5 +1,5 @@
 {
-  "name": "telemetry-sdk",
+  "name": "@jayeshsadhwani/telemetry-sdk",
   "version": "1.0.0",
   "description": "A lightweight, configurable telemetry tracking library for JavaScript/TypeScript applications with comprehensive error handling, event batching, and graceful degradation",
   "main": "dist/index.js",
@@ -17,7 +17,10 @@
     "prepare": "husky",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "postinstall": "husky"
+    "postinstall": "husky",
+    "prepublishOnly": "pnpm run build && pnpm run lint",
+    "version": "pnpm run build && git add -A dist",
+    "postversion": "git push && git push --tags"
   },
   "keywords": [
     "telemetry",
@@ -36,7 +39,7 @@
   "packageManager": "pnpm@10.6.3",
   "repository": {
     "type": "git",
-    "url": "https://github.com/your-org/telemetry-sdk.git"
+    "url": "https://github.com/DrDroidLab/telemetry-sdk.git"
   },
   "devDependencies": {
     "@eslint/js": "^9.31.0",
