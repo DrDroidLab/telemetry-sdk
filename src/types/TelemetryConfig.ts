@@ -10,6 +10,7 @@ export type TelemetryConfig = {
   enableLogs?: boolean;
   enableNetwork?: boolean;
   enablePerformance?: boolean;
+  enableErrors?: boolean; // Enable error tracking
   batchSize?: number;
   flushInterval?: number;
   maxRetries?: number;

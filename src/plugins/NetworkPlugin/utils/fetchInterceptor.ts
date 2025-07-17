@@ -6,6 +6,56 @@ export type FetchInterceptorContext = {
   safeCapture: (event: NetworkEvent) => void;
 };
 
+// Helper function to extract query parameters from URL
+const extractQueryParams = (url: string): Record<string, string> => {
+  try {
+    const urlObj = new URL(
+      url,
+      typeof window !== "undefined" ? window.location.origin : ""
+    );
+    const params: Record<string, string> = {};
+    urlObj.searchParams.forEach((value, key) => {
+      params[key] = value;
+    });
+    return params;
+  } catch {
+    return {};
+  }
+};
+
+// Helper function to extract response headers
+const extractResponseHeaders = (response: Response): Record<string, string> => {
+  const headers: Record<string, string> = {};
+  try {
+    response.headers.forEach((value, key) => {
+      headers[key.toLowerCase()] = value;
+    });
+  } catch {
+    // Ignore header extraction errors
+  }
+  return headers;
+};
+
+// Helper function to extract response body
+const extractResponseBody = async (response: Response): Promise<unknown> => {
+  try {
+    const clone = response.clone(); // Clone to avoid consuming the response
+    const text = await clone.text();
+    if (text) {
+      return JSON.parse(text);
+    }
+  } catch {
+    // If JSON parsing fails, return the raw text
+    try {
+      const clone = response.clone();
+      return await clone.text();
+    } catch {
+      return null;
+    }
+  }
+  return null;
+};
+
 export const createFetchInterceptor = (context: FetchInterceptorContext) => {
   const { originalFetch, telemetryEndpoint, safeCapture } = context;
 
@@ -44,8 +94,11 @@ export const createFetchInterceptor = (context: FetchInterceptorContext) => {
           payload: {
             url,
             method,
+            queryParams: extractQueryParams(url),
             status: response.status,
             statusText: response.statusText,
+            responseHeaders: extractResponseHeaders(response),
+            responseBody: await extractResponseBody(response),
             duration,
             startTime,
             endTime: endTime,
@@ -75,6 +128,7 @@ export const createFetchInterceptor = (context: FetchInterceptorContext) => {
           payload: {
             url,
             method,
+            queryParams: extractQueryParams(url),
             error: error instanceof Error ? error.message : String(error),
             duration,
             startTime,
@@ -104,12 +158,15 @@ export const createFetchInterceptor = (context: FetchInterceptorContext) => {
 
 export const setupFetchInterceptor = (context: FetchInterceptorContext) => {
   const interceptor = createFetchInterceptor(context);
+
+  // Store original fetch
+  const originalFetch = window.fetch;
+
+  // Replace fetch with interceptor
   window.fetch = interceptor;
 
+  // Return function to restore original fetch
   return () => {
-    if ((window as unknown as Record<string, unknown>)._originalFetch) {
-      window.fetch = (window as unknown as Record<string, unknown>)
-        ._originalFetch as typeof fetch;
-    }
+    window.fetch = originalFetch;
   };
 };

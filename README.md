@@ -34,8 +34,6 @@ function TelemetryProvider() {
       telemetry.destroy();
     };
   }, []);
-
-  return null;
 }
 
 export default TelemetryProvider;
@@ -409,6 +407,45 @@ telemetry.capture({
 - **Input Validation**: Comprehensive validation and sanitization of all user data
 - **Automatic Shutdown**: Ensures events are flushed when the application closes (browser unload, Node.js process termination)
 
+## 🔄 TelemetryTracker Compatibility
+
+The SDK is designed to be fully compatible with the TelemetryTracker format. All events are sent to Hyperlook in the exact same format and structure as your TelemetryTracker implementation:
+
+### Event Format Compatibility
+
+All events include the same properties as TelemetryTracker:
+
+- `event_id`: Auto-generated unique event ID
+- `user_id`: User identification (if provided)
+- `session_id`: Session tracking
+- `event_type`: Event category (page, network, error, etc.)
+- `event_name`: Specific event name
+- `properties`: Event-specific data
+- `user_properties`: User-specific data
+- `page_url`: Current page URL
+- `page_title`: Page title
+- `referrer`: Referrer URL
+- `user_agent`: Browser user agent
+- `timestamp`: ISO timestamp
+
+### API Key Configuration
+
+The SDK requires a Hyperlook API key to be provided:
+
+- **Required**: Must provide `hyperlookApiKey` in configuration
+- **Security**: No default API key is used for security reasons
+- **Configuration**: Set via `hyperlookApiKey` parameter in `initTelemetry()`
+
+### Event Type Mapping
+
+| TelemetryTracker Event        | SDK Event                     | Properties                                                                                                                                 |
+| ----------------------------- | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `PAGE_HIT`                    | `page_hit`                    | viewport, characterSet, language, cookieEnabled, onLine, platform, userAgent, referrer, url, title                                         |
+| `XHR_COMPLETE`                | `xhr_complete`                | url, method, queryParams, responseStatus, responseStatusText, responseHeaders, responseBody, duration, startTime, endTime, isSupabaseQuery |
+| `FETCH_COMPLETE`              | `fetch_complete`              | url, method, queryParams, responseStatus, responseStatusText, responseHeaders, responseBody, duration, startTime, endTime, isSupabaseQuery |
+| `JAVASCRIPT_ERROR`            | `javascript_error`            | message, filename, lineno, colno, error, stack                                                                                             |
+| `UNHANDLED_PROMISE_REJECTION` | `unhandled_promise_rejection` | reason, promise                                                                                                                            |
+
 ## 📊 Event Types
 
 The SDK automatically captures various types of events:
@@ -455,6 +492,10 @@ Intercepts and tracks console.log, console.error, etc.
 ### NetworkPlugin
 
 Monitors fetch and XMLHttpRequest calls.
+
+### ErrorPlugin
+
+Captures JavaScript errors and unhandled promise rejections.
 
 ### PerformancePlugin
 

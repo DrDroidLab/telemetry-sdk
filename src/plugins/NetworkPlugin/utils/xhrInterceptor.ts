@@ -7,6 +7,58 @@ export type XHRInterceptorContext = {
   patchedXHRs: Set<XMLHttpRequest>;
 };
 
+// Helper function to extract query parameters from URL
+const extractQueryParams = (url: string): Record<string, string> => {
+  try {
+    const urlObj = new URL(
+      url,
+      typeof window !== "undefined" ? window.location.origin : ""
+    );
+    const params: Record<string, string> = {};
+    urlObj.searchParams.forEach((value, key) => {
+      params[key] = value;
+    });
+    return params;
+  } catch {
+    return {};
+  }
+};
+
+// Helper function to extract response headers
+const extractResponseHeaders = (
+  xhr: XMLHttpRequest
+): Record<string, string> => {
+  const headers: Record<string, string> = {};
+  try {
+    const headerString = xhr.getAllResponseHeaders();
+    if (headerString) {
+      headerString.split("\r\n").forEach(line => {
+        const [key, value] = line.split(": ");
+        if (key && value) {
+          headers[key.toLowerCase()] = value;
+        }
+      });
+    }
+  } catch {
+    // Ignore header extraction errors
+  }
+  return headers;
+};
+
+// Helper function to extract response body
+const extractResponseBody = (xhr: XMLHttpRequest): unknown => {
+  try {
+    const responseText = xhr.responseText;
+    if (responseText) {
+      return JSON.parse(responseText);
+    }
+  } catch {
+    // If JSON parsing fails, return the raw text
+    return xhr.responseText;
+  }
+  return null;
+};
+
 export const createXHROpenInterceptor = (context: XHRInterceptorContext) => {
   const { patchedXHRs } = context;
 
@@ -67,8 +119,11 @@ export const createXHRSendInterceptor = (context: XHRInterceptorContext) => {
           payload: {
             url,
             method,
+            queryParams: extractQueryParams(url),
             status: this.status,
             statusText: this.statusText,
+            responseHeaders: extractResponseHeaders(this),
+            responseBody: extractResponseBody(this),
             duration,
             startTime,
             endTime: endTime,

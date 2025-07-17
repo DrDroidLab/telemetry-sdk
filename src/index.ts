@@ -17,6 +17,7 @@ import { NetworkPlugin } from "./plugins/NetworkPlugin";
 import { PerformancePlugin } from "./plugins/PerformancePlugin";
 import { CustomEventsPlugin } from "./plugins/CustomEventsPlugin";
 import { PageViewPlugin } from "./plugins/PageViewPlugin";
+import { ErrorPlugin } from "./plugins/ErrorPlugin";
 import { initialTelemetryConfig } from "./utils/initialTelemetryConfig";
 
 export {
@@ -28,6 +29,7 @@ export {
   PerformancePlugin,
   CustomEventsPlugin,
   PageViewPlugin,
+  ErrorPlugin,
   HTTPExporter,
   getLogger,
   setLogger,

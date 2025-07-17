@@ -7,6 +7,7 @@ import {
   PerformancePlugin,
   CustomEventsPlugin,
   PageViewPlugin,
+  ErrorPlugin,
 } from "../plugins";
 
 export class PluginManager {
@@ -49,6 +50,11 @@ export class PluginManager {
           enabled: config.enablePerformance,
           plugin: PerformancePlugin,
           name: "PerformancePlugin",
+        },
+        {
+          enabled: config.enableErrors ?? true, // Enable errors by default
+          plugin: ErrorPlugin,
+          name: "ErrorPlugin",
         },
         {
           enabled: config.enableCustomEvents,
