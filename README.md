@@ -16,7 +16,9 @@ import { initTelemetry } from "telemetry-sdk";
 
 function TelemetryProvider() {
   useEffect(() => {
-    let telemetry = initTelemetry({});
+    let telemetry = initTelemetry({
+      apiKey: "your-api-key", // Replace with your Hyperlook API key
+    });
 
     return () => {
       telemetry.destroy();
