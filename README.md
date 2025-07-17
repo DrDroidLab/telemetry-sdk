@@ -62,6 +62,8 @@ export default function RootLayout({
 
 That's it! The telemetry SDK will automatically start collecting data once the component mounts.
 
+**🆕 Early Initialization**: The SDK now automatically captures network requests made before initialization, ensuring no requests are missed!
+
 ### React Applications
 
 ```tsx
@@ -117,6 +119,7 @@ telemetry.identify("user-123", {
 });
 
 // The SDK automatically starts collecting telemetry data
+// Network requests made before initialization are automatically captured and processed
 ```
 
 ## 🎯 Advanced Configuration
@@ -162,6 +165,19 @@ const telemetry = initTelemetry({
 
 Initializes the telemetry SDK with the provided configuration. **Automatically sets up shutdown handlers** to ensure events are flushed when the application closes.
 
+#### Early Initialization
+
+The SDK automatically sets up network interceptors immediately when the `TelemetryManager` is constructed, ensuring that network requests made before the SDK is fully initialized are captured and processed once the SDK is ready. This prevents any requests from being missed, even if they occur during the initial page load or before your application code runs.
+
+**How it works:**
+
+1. Network interceptors (fetch/XHR) are patched immediately in the `TelemetryManager` constructor
+2. Requests made before initialization are queued in memory
+3. When the SDK initialization completes, queued requests are processed and sent to your telemetry endpoint
+4. All subsequent requests are captured in real-time
+
+This feature works automatically - no additional configuration required!
+
 #### Automatic Shutdown Handling
 
 The SDK automatically registers shutdown handlers when initialized:
@@ -184,23 +200,23 @@ This ensures that telemetry data is not lost even if developers forget to manual
 
 #### Configuration Options
 
-| Option               | Type           | Default        | Description                              |
-| -------------------- | -------------- | -------------- | ---------------------------------------- |
-| `hyperlookApiKey`    | `string`       | Required       | Your Hyperlook API key                   |
-| `batchSize`          | `number`       | `50`           | Number of events to batch before sending |
-| `flushInterval`      | `number`       | `30000`        | Flush interval in milliseconds           |
-| `maxRetries`         | `number`       | `3`            | Maximum number of retry attempts         |
-| `retryDelay`         | `number`       | `1000`         | Delay between retries in milliseconds    |
-| `samplingRate`       | `number`       | `1.0`          | Sampling rate (0.0 to 1.0)               |
-| `enablePageViews`    | `boolean`      | `true`         | Enable page view tracking (page_hit)     |
-| `enableClicks`       | `boolean`      | `true`         | Enable click event tracking              |
-| `enableLogs`         | `boolean`      | `true`         | Enable console log tracking              |
-| `enableNetwork`      | `boolean`      | `true`         | Enable network request tracking          |
-| `enablePerformance`  | `boolean`      | `true`         | Enable performance metrics tracking      |
-| `enableCustomEvents` | `boolean`      | `false`        | Enable custom events plugin              |
-| `sessionId`          | `string`       | Auto-generated | Custom session ID for tracking           |
-| `userId`             | `string`       | `undefined`    | Initial user ID for identification       |
-| `logging`            | `LoggerConfig` | `{}`           | Logging configuration                    |
+| Option               | Type           | Default        | Description                                                                                  |
+| -------------------- | -------------- | -------------- | -------------------------------------------------------------------------------------------- |
+| `hyperlookApiKey`    | `string`       | Required       | Your Hyperlook API key                                                                       |
+| `batchSize`          | `number`       | `50`           | Number of events to batch before sending                                                     |
+| `flushInterval`      | `number`       | `30000`        | Flush interval in milliseconds                                                               |
+| `maxRetries`         | `number`       | `3`            | Maximum number of retry attempts                                                             |
+| `retryDelay`         | `number`       | `1000`         | Delay between retries in milliseconds                                                        |
+| `samplingRate`       | `number`       | `1.0`          | Sampling rate (0.0 to 1.0)                                                                   |
+| `enablePageViews`    | `boolean`      | `true`         | Enable page view tracking (page_hit)                                                         |
+| `enableClicks`       | `boolean`      | `true`         | Enable click event tracking                                                                  |
+| `enableLogs`         | `boolean`      | `true`         | Enable console log tracking                                                                  |
+| `enableNetwork`      | `boolean`      | `true`         | Enable network request tracking (automatically captures requests made before initialization) |
+| `enablePerformance`  | `boolean`      | `true`         | Enable performance metrics tracking                                                          |
+| `enableCustomEvents` | `boolean`      | `false`        | Enable custom events plugin                                                                  |
+| `sessionId`          | `string`       | Auto-generated | Custom session ID for tracking                                                               |
+| `userId`             | `string`       | `undefined`    | Initial user ID for identification                                                           |
+| `logging`            | `LoggerConfig` | `{}`           | Logging configuration                                                                        |
 
 ### TelemetryManager Methods
 

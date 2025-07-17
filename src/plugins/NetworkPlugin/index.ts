@@ -72,6 +72,11 @@ export class NetworkPlugin extends BasePlugin {
         this.setupCleanupInterval();
       }
 
+      // Early events are now processed by the TelemetryManager itself
+      this.logger.info(
+        "NetworkPlugin setup complete - early events handled by TelemetryManager"
+      );
+
       this.logger.info("NetworkPlugin setup complete");
     } catch (error) {
       this.logger.error("Failed to setup NetworkPlugin", {

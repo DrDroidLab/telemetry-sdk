@@ -16,6 +16,10 @@ import { EventProcessor } from "./EventProcessor";
 import { ExportManager } from "./ExportManager";
 import { HYPERLOOK_URL } from "../constants";
 
+// Global early event queue for requests made before SDK initialization
+const earlyEventQueue: TelemetryEvent[] = [];
+let earlyInterceptorsSetup = false;
+
 export class TelemetryManager {
   private state: TelemetryState = TelemetryState.INITIALIZING;
   private logger: Logger;
@@ -31,8 +35,13 @@ export class TelemetryManager {
   private eventProcessor: EventProcessor;
   private exportManager: ExportManager;
 
+  // Early initialization support - removed unused singleton instance
+
   constructor(config: TelemetryConfig) {
     validateConfig(config);
+
+    // Set up early network interceptors immediately
+    this.setupEarlyInterceptors();
 
     // Initialize logger
     if (config.logging) {
@@ -88,6 +97,9 @@ export class TelemetryManager {
     pluginsToRegister.forEach(plugin => {
       this.pluginManager.register(plugin, this);
     });
+
+    // Process any events that were queued before initialization
+    this.processEarlyEventQueue();
 
     // Set state to running
     this.state = TelemetryState.RUNNING;
@@ -326,5 +338,396 @@ export class TelemetryManager {
 
   getEndpoint(): string {
     return HYPERLOOK_URL;
+  }
+
+  // Early initialization methods
+  private setupEarlyInterceptors(): void {
+    if (earlyInterceptorsSetup) {
+      return;
+    }
+
+    // Set up early fetch interceptor
+    this.setupEarlyFetchInterceptor();
+
+    // Set up early XHR interceptor
+    if (typeof XMLHttpRequest !== "undefined") {
+      this.setupEarlyXHRInterceptors();
+    }
+
+    earlyInterceptorsSetup = true;
+  }
+
+  private setupEarlyFetchInterceptor(): void {
+    const originalFetch =
+      typeof window !== "undefined" ? window.fetch : globalThis.fetch;
+
+    const earlyFetchInterceptor = async (
+      input: RequestInfo | URL,
+      init?: RequestInit
+    ) => {
+      const startTime = performance.now();
+      let url: string;
+
+      if (typeof input === "string") {
+        url = input;
+      } else if (input instanceof URL) {
+        url = input.toString();
+      } else if (typeof (input as { url?: string }).url === "string") {
+        url = (input as { url: string }).url;
+      } else {
+        url = JSON.stringify(input);
+      }
+
+      const method = init?.method || "GET";
+
+      // Filter out requests to the Hyperlook ingestion URL
+      if (url.includes(HYPERLOOK_URL)) {
+        return originalFetch.call(
+          typeof window !== "undefined" ? window : globalThis,
+          input,
+          init
+        );
+      }
+
+      try {
+        const response = await originalFetch.call(
+          typeof window !== "undefined" ? window : globalThis,
+          input,
+          init
+        );
+        const endTime = performance.now();
+
+        // Queue the request for later processing
+        this.queueEarlyEvent("network", "fetch_complete", {
+          url,
+          method,
+          responseStatus: response.status,
+          responseStatusText: response.statusText,
+          responseHeaders: this.extractResponseHeaders(response),
+          responseBody: await this.extractResponseBody(response),
+          duration: endTime - startTime,
+          startTime,
+          endTime,
+          isSupabaseQuery: this.isSupabaseUrl(url),
+          queryParams: this.extractQueryParams(url),
+        });
+
+        return response;
+      } catch (error) {
+        const endTime = performance.now();
+
+        // Queue the failed request for later processing
+        this.queueEarlyEvent("network", "fetch_error", {
+          url,
+          method,
+          error: error instanceof Error ? error.message : String(error),
+          duration: endTime - startTime,
+          startTime,
+          endTime,
+          isSupabaseQuery: this.isSupabaseUrl(url),
+          queryParams: this.extractQueryParams(url),
+        });
+
+        throw error;
+      }
+    };
+
+    // No prototype or property copying for fetch, just assign the interceptor directly.
+    if (typeof window !== "undefined") {
+      (window as unknown as { fetch: typeof fetch }).fetch =
+        earlyFetchInterceptor;
+    } else {
+      (globalThis as { fetch: typeof fetch }).fetch = earlyFetchInterceptor;
+    }
+  }
+
+  private setupEarlyXHRInterceptors(): void {
+    const originalXHROpen = XMLHttpRequest.prototype.open.bind(
+      XMLHttpRequest.prototype
+    );
+    const originalXHRSend = XMLHttpRequest.prototype.send.bind(
+      XMLHttpRequest.prototype
+    );
+    const xhrHandlers = new WeakMap<XMLHttpRequest, () => void>();
+
+    // Early XHR open interceptor
+    const earlyXHROpenInterceptor = function (
+      this: XMLHttpRequest,
+      method: string,
+      url: string | URL,
+      async?: boolean,
+      user?: string | null,
+      password?: string | null
+    ) {
+      // Filter out requests to the Hyperlook ingestion URL
+      if (typeof url === "string" && url.includes(HYPERLOOK_URL)) {
+        return originalXHROpen.call(
+          this,
+          method,
+          url,
+          async ?? true,
+          user,
+          password
+        );
+      }
+
+      (this as unknown as Record<string, unknown>)._telemetryMethod = method;
+      (this as unknown as Record<string, unknown>)._telemetryUrl =
+        typeof url === "string" ? url : String(url);
+      (this as unknown as Record<string, unknown>)._telemetryStartTime =
+        performance.now();
+
+      return originalXHROpen.call(
+        this,
+        method,
+        url,
+        async ?? true,
+        user,
+        password
+      );
+    };
+
+    // Early XHR send interceptor
+    const earlyXHRSendInterceptor = function (
+      this: XMLHttpRequest,
+      body?: Document | XMLHttpRequestBodyInit | null
+    ) {
+      const startTime = (this as unknown as Record<string, unknown>)
+        ._telemetryStartTime as number;
+      const method = (this as unknown as Record<string, unknown>)
+        ._telemetryMethod as string;
+      const url = (this as unknown as Record<string, unknown>)
+        ._telemetryUrl as string;
+
+      let eventCaptured = false;
+
+      // Success handler
+      const successHandler = function (this: XMLHttpRequest) {
+        if (eventCaptured) return;
+        eventCaptured = true;
+
+        const endTime = performance.now();
+
+        // Queue the request for later processing
+        TelemetryManager.queueEarlyEventStatic("network", "xhr_complete", {
+          url,
+          method,
+          responseStatus: this.status,
+          responseStatusText: this.statusText,
+          responseHeaders: TelemetryManager.extractXHRResponseHeaders(this),
+          responseBody: TelemetryManager.extractXHRResponseBody(this),
+          duration: endTime - startTime,
+          startTime,
+          endTime,
+          isSupabaseQuery: TelemetryManager.isSupabaseUrl(url),
+          queryParams: TelemetryManager.extractQueryParams(url),
+        });
+
+        cleanup();
+      }.bind(this);
+
+      // Error handler
+      const errorHandler = function (this: XMLHttpRequest) {
+        if (eventCaptured) return;
+        eventCaptured = true;
+
+        const endTime = performance.now();
+
+        // Queue the failed request for later processing
+        TelemetryManager.queueEarlyEventStatic("network", "xhr_error", {
+          url,
+          method,
+          responseStatus: this.status,
+          responseStatusText: this.statusText,
+          error: "XHR request failed",
+          duration: endTime - startTime,
+          startTime,
+          endTime,
+          isSupabaseQuery: TelemetryManager.isSupabaseUrl(url),
+          queryParams: TelemetryManager.extractQueryParams(url),
+        });
+
+        cleanup();
+      }.bind(this);
+
+      // Abort handler
+      const abortHandler = function (this: XMLHttpRequest) {
+        if (eventCaptured) return;
+        eventCaptured = true;
+
+        const endTime = performance.now();
+
+        // Queue the aborted request for later processing
+        TelemetryManager.queueEarlyEventStatic("network", "xhr_error", {
+          url,
+          method,
+          responseStatus: this.status,
+          responseStatusText: this.statusText,
+          error: "XHR request aborted",
+          duration: endTime - startTime,
+          startTime,
+          endTime,
+          isSupabaseQuery: TelemetryManager.isSupabaseUrl(url),
+          queryParams: TelemetryManager.extractQueryParams(url),
+        });
+
+        cleanup();
+      }.bind(this);
+
+      // Cleanup function
+      const cleanup = () => {
+        this.removeEventListener("load", successHandler as EventListener);
+        this.removeEventListener("error", errorHandler as EventListener);
+        this.removeEventListener("abort", abortHandler as EventListener);
+        xhrHandlers.delete(this);
+      };
+
+      // Store handlers for later cleanup
+      xhrHandlers.set(this, cleanup);
+
+      this.addEventListener("load", successHandler as EventListener);
+      this.addEventListener("error", errorHandler as EventListener);
+      this.addEventListener("abort", abortHandler as EventListener);
+
+      return originalXHRSend.call(this, body);
+    };
+
+    // Replace XHR prototypes
+    XMLHttpRequest.prototype.open = earlyXHROpenInterceptor;
+    XMLHttpRequest.prototype.send = earlyXHRSendInterceptor;
+  }
+
+  private queueEarlyEvent(
+    eventType: string,
+    eventName: string,
+    payload: Record<string, unknown>
+  ): void {
+    earlyEventQueue.push({
+      eventType,
+      eventName,
+      payload,
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  private static queueEarlyEventStatic(
+    eventType: string,
+    eventName: string,
+    payload: Record<string, unknown>
+  ): void {
+    earlyEventQueue.push({
+      eventType,
+      eventName,
+      payload,
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  private processEarlyEventQueue(): void {
+    if (earlyEventQueue.length === 0) {
+      return;
+    }
+
+    this.logger.info("Processing early event queue", {
+      queuedEvents: earlyEventQueue.length,
+    });
+
+    // Process all queued events
+    earlyEventQueue.forEach(event => {
+      this.capture(event);
+    });
+
+    // Clear the queue
+    earlyEventQueue.length = 0;
+  }
+
+  // Helper functions
+  private isSupabaseUrl(url: string): boolean {
+    return url.includes("supabase.co") || url.includes("supabase.com");
+  }
+
+  private extractQueryParams(url: string): Record<string, string> {
+    try {
+      const urlObj = new URL(
+        url,
+        typeof window !== "undefined"
+          ? window.location.origin
+          : "http://localhost"
+      );
+      const params: Record<string, string> = {};
+      urlObj.searchParams.forEach((value, key) => {
+        params[key] = value;
+      });
+      return params;
+    } catch {
+      return {};
+    }
+  }
+
+  private async extractResponseBody(response: Response): Promise<string> {
+    try {
+      const clone = response.clone();
+      const text = await clone.text();
+      return text.length > 1000 ? text.substring(0, 1000) + "..." : text;
+    } catch {
+      return "";
+    }
+  }
+
+  private extractResponseHeaders(response: Response): Record<string, string> {
+    const headers: Record<string, string> = {};
+    response.headers.forEach((value, key) => {
+      headers[key] = value;
+    });
+    return headers;
+  }
+
+  private static extractXHRResponseHeaders(
+    xhr: XMLHttpRequest
+  ): Record<string, string> {
+    const headers: Record<string, string> = {};
+    const headerString = xhr.getAllResponseHeaders();
+    if (headerString) {
+      headerString.split("\r\n").forEach(line => {
+        const [key, value] = line.split(": ");
+        if (key && value) {
+          headers[key.toLowerCase()] = value;
+        }
+      });
+    }
+    return headers;
+  }
+
+  private static extractXHRResponseBody(xhr: XMLHttpRequest): string {
+    try {
+      const responseText = xhr.responseText || "";
+      return responseText.length > 1000
+        ? responseText.substring(0, 1000) + "..."
+        : responseText;
+    } catch {
+      return "";
+    }
+  }
+
+  private static isSupabaseUrl(url: string): boolean {
+    return url.includes("supabase.co") || url.includes("supabase.com");
+  }
+
+  private static extractQueryParams(url: string): Record<string, string> {
+    try {
+      const urlObj = new URL(
+        url,
+        typeof window !== "undefined"
+          ? window.location.origin
+          : "http://localhost"
+      );
+      const params: Record<string, string> = {};
+      urlObj.searchParams.forEach((value, key) => {
+        params[key] = value;
+      });
+      return params;
+    } catch {
+      return {};
+    }
   }
 }
