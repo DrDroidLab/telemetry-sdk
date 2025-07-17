@@ -1,10 +1,10 @@
 import type { NetworkEvent } from "../types";
 import {
-  isSupabaseUrl,
   extractQueryParams,
   extractXHRResponseHeaders,
   extractXHRResponseBody,
 } from "./index";
+import { isSupabaseUrl } from "../../../utils";
 import { HYPERLOOK_URL } from "../../../constants";
 
 export type XHRInterceptorContext = {

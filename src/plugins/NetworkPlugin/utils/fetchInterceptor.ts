@@ -1,11 +1,11 @@
 import type { NetworkEvent } from "../types";
 import type { Logger } from "../../../types/Logger";
 import {
-  isSupabaseUrl,
   extractQueryParams,
   extractResponseHeaders,
   extractResponseBody,
 } from "./index";
+import { isSupabaseUrl } from "../../../utils";
 import { HYPERLOOK_URL } from "../../../constants";
 
 export type FetchInterceptorContext = {

@@ -16,10 +16,8 @@ export const isSupabaseUrl = (url: string): boolean => {
 
     return isSupabase;
   } catch {
-    // If URL parsing fails, fall back to string includes
-    const isSupabase =
-      url.includes("supabase.co") || url.includes("supabase.com");
-
-    return isSupabase;
+    // If URL parsing fails, we can't reliably determine if it's a Supabase URL
+    // Return false to avoid false positives
+    return false;
   }
 };

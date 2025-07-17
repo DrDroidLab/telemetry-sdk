@@ -1,4 +1,3 @@
-export * from "./isSupabaseUrl";
 export * from "./extractQueryParams";
 export * from "./extractResponseHeaders";
 export * from "./extractResponseBody";
