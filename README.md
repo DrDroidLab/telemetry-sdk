@@ -5,11 +5,11 @@ A lightweight, configurable telemetry tracking library for JavaScript/TypeScript
 ## 📦 Installation
 
 ```bash
-npm install @jayeshsadhwani/telemetry-sdk
+npm install @hyperlook/telemetry-sdk
 # or
-yarn add @jayeshsadhwani/telemetry-sdk
+yarn add @hyperlook/telemetry-sdk
 # or
-pnpm add @jayeshsadhwani/telemetry-sdk
+pnpm add @hyperlook/telemetry-sdk
 ```
 
 ## 🚀 Quick Start
@@ -22,7 +22,7 @@ Create a client component for telemetry initialization:
 "use client";
 
 import { useEffect } from "react";
-import { initTelemetry } from "@jayeshsadhwani/telemetry-sdk";
+import { initTelemetry } from "@hyperlook/telemetry-sdk";
 
 function TelemetryProvider() {
   useEffect(() => {
@@ -60,16 +60,12 @@ export default function RootLayout({
 }
 ```
 
-That's it! The telemetry SDK will automatically start collecting data once the component mounts.
-
-**🆕 Early Initialization**: The SDK now automatically captures network requests made before initialization, ensuring no requests are missed!
-
 ### React Applications
 
 ```tsx
 // In your main App component or entry point
 import { useEffect } from "react";
-import { initTelemetry } from "@jayeshsadhwani/telemetry-sdk";
+import { initTelemetry } from "@hyperlook/telemetry-sdk";
 
 function App() {
   useEffect(() => {
@@ -87,8 +83,6 @@ function App() {
       name: "John Doe",
       email: "john@example.com",
     });
-
-    // The SDK automatically sets up shutdown handlers, so no cleanup needed
   }, []);
 
   return <div>{/* Your app content */}</div>;
@@ -100,7 +94,7 @@ export default App;
 ### Basic Usage (Any JavaScript/TypeScript Application)
 
 ```typescript
-import { initTelemetry } from "@jayeshsadhwani/telemetry-sdk";
+import { initTelemetry } from "@hyperlook/telemetry-sdk";
 
 // Initialize with default configuration
 const telemetry = initTelemetry({
@@ -117,15 +111,12 @@ telemetry.identify("user-123", {
   name: "John Doe",
   email: "john@example.com",
 });
-
-// The SDK automatically starts collecting telemetry data
-// Network requests made before initialization are automatically captured and processed
 ```
 
 ## 🎯 Advanced Configuration
 
 ```typescript
-import { initTelemetry } from "@jayeshsadhwani/telemetry-sdk";
+import { initTelemetry } from "@hyperlook/telemetry-sdk";
 
 const telemetry = initTelemetry({
   hyperlookApiKey: "your-api-key", // Replace with your Hyperlook API key
@@ -165,58 +156,25 @@ const telemetry = initTelemetry({
 
 Initializes the telemetry SDK with the provided configuration. **Automatically sets up shutdown handlers** to ensure events are flushed when the application closes.
 
-#### Early Initialization
-
-The SDK automatically sets up network interceptors immediately when the `TelemetryManager` is constructed, ensuring that network requests made before the SDK is fully initialized are captured and processed once the SDK is ready. This prevents any requests from being missed, even if they occur during the initial page load or before your application code runs.
-
-**How it works:**
-
-1. Network interceptors (fetch/XHR) are patched immediately in the `TelemetryManager` constructor
-2. Requests made before initialization are queued in memory
-3. When the SDK initialization completes, queued requests are processed and sent to your telemetry endpoint
-4. All subsequent requests are captured in real-time
-
-This feature works automatically - no additional configuration required!
-
-#### Automatic Shutdown Handling
-
-The SDK automatically registers shutdown handlers when initialized:
-
-**Browser Environment:**
-
-- `beforeunload` event: Flushes events when the page is about to unload
-- `pagehide` event: Flushes events when the page is hidden (mobile browsers, tab switching)
-- `visibilitychange` event: Flushes events when the page becomes hidden (with 1-second delay to avoid unnecessary flushes)
-
-**Node.js Environment:**
-
-- `SIGTERM` signal: Graceful shutdown when the process receives termination signal
-- `SIGINT` signal: Graceful shutdown when the process receives interrupt signal (Ctrl+C)
-- `uncaughtException`: Shutdown on uncaught exceptions
-- `unhandledRejection`: Shutdown on unhandled promise rejections
-- `exit` event: Force cleanup when the process exits
-
-This ensures that telemetry data is not lost even if developers forget to manually call `shutdown()`.
-
 #### Configuration Options
 
-| Option               | Type           | Default        | Description                                                                                  |
-| -------------------- | -------------- | -------------- | -------------------------------------------------------------------------------------------- |
-| `hyperlookApiKey`    | `string`       | Required       | Your Hyperlook API key                                                                       |
-| `batchSize`          | `number`       | `50`           | Number of events to batch before sending                                                     |
-| `flushInterval`      | `number`       | `30000`        | Flush interval in milliseconds                                                               |
-| `maxRetries`         | `number`       | `3`            | Maximum number of retry attempts                                                             |
-| `retryDelay`         | `number`       | `1000`         | Delay between retries in milliseconds                                                        |
-| `samplingRate`       | `number`       | `1.0`          | Sampling rate (0.0 to 1.0)                                                                   |
-| `enablePageViews`    | `boolean`      | `true`         | Enable page view tracking (page_hit)                                                         |
-| `enableClicks`       | `boolean`      | `true`         | Enable click event tracking                                                                  |
-| `enableLogs`         | `boolean`      | `true`         | Enable console log tracking                                                                  |
-| `enableNetwork`      | `boolean`      | `true`         | Enable network request tracking (automatically captures requests made before initialization) |
-| `enablePerformance`  | `boolean`      | `true`         | Enable performance metrics tracking                                                          |
-| `enableCustomEvents` | `boolean`      | `false`        | Enable custom events plugin                                                                  |
-| `sessionId`          | `string`       | Auto-generated | Custom session ID for tracking                                                               |
-| `userId`             | `string`       | `undefined`    | Initial user ID for identification                                                           |
-| `logging`            | `LoggerConfig` | `{}`           | Logging configuration                                                                        |
+| Option               | Type           | Default        | Description                              |
+| -------------------- | -------------- | -------------- | ---------------------------------------- |
+| `hyperlookApiKey`    | `string`       | Required       | Your Hyperlook API key                   |
+| `batchSize`          | `number`       | `50`           | Number of events to batch before sending |
+| `flushInterval`      | `number`       | `30000`        | Flush interval in milliseconds           |
+| `maxRetries`         | `number`       | `3`            | Maximum number of retry attempts         |
+| `retryDelay`         | `number`       | `1000`         | Delay between retries in milliseconds    |
+| `samplingRate`       | `number`       | `1.0`          | Sampling rate (0.0 to 1.0)               |
+| `enablePageViews`    | `boolean`      | `true`         | Enable page view tracking (page_hit)     |
+| `enableClicks`       | `boolean`      | `true`         | Enable click event tracking              |
+| `enableLogs`         | `boolean`      | `true`         | Enable console log tracking              |
+| `enableNetwork`      | `boolean`      | `true`         | Enable network request tracking          |
+| `enablePerformance`  | `boolean`      | `true`         | Enable performance metrics tracking      |
+| `enableCustomEvents` | `boolean`      | `false`        | Enable custom events plugin              |
+| `sessionId`          | `string`       | Auto-generated | Custom session ID for tracking           |
+| `userId`             | `string`       | `undefined`    | Initial user ID for identification       |
+| `logging`            | `LoggerConfig` | `{}`           | Logging configuration                    |
 
 ### TelemetryManager Methods
 
@@ -246,11 +204,6 @@ Gracefully shuts down the telemetry manager, flushing any remaining events.
 await telemetry.shutdown();
 ```
 
-**Note:** The SDK automatically sets up shutdown handlers when initialized, so events will be flushed even if you don't manually call `shutdown()`. This includes:
-
-- Browser: `beforeunload` and `pagehide` events
-- Node.js: `SIGTERM`, `SIGINT`, `uncaughtException`, and `unhandledRejection` events
-
 #### `destroy(): void`
 
 Immediately destroys the telemetry manager without flushing events.
@@ -260,18 +213,9 @@ Immediately destroys the telemetry manager without flushing events.
 telemetry.destroy();
 ```
 
-#### `retryFailedEvents(): Promise<void>`
-
-Retries sending failed events.
-
-```typescript
-// Retry failed events when network is restored
-await telemetry.retryFailedEvents();
-```
-
 #### `identify(userId: string, traits?: Record<string, unknown>): void`
 
-Identifies a user with the given user ID and optional traits. This creates an "identify" event and sets the user ID for all subsequent events.
+Identifies a user with the given user ID and optional traits.
 
 ```typescript
 // Identify a user with traits
@@ -281,9 +225,6 @@ telemetry.identify("user-123", {
   plan: "premium",
   signupDate: "2024-01-15",
 });
-
-// Identify without traits
-telemetry.identify("user-456");
 ```
 
 #### `getSessionId(): string`
@@ -304,60 +245,11 @@ const userId = telemetry.getUserId();
 console.log("Current user:", userId);
 ```
 
-#### `getCustomEventsPlugin(): CustomEventsPlugin | undefined`
-
-Returns the custom events plugin if enabled, allowing you to capture custom events.
-
-```typescript
-const customPlugin = telemetry.getCustomEventsPlugin();
-if (customPlugin) {
-  customPlugin.captureCustomEvent("ecommerce", "purchase", {
-    productId: "prod_123",
-    amount: 99.99,
-  });
-}
-```
-
-#### Monitoring Methods
-
-```typescript
-// Get counts of different event types
-const failedCount = telemetry.getFailedEventsCount();
-const queuedCount = telemetry.getQueuedEventsCount();
-const bufferedCount = telemetry.getBufferedEventsCount();
-
-console.log(
-  `Failed: ${failedCount}, Queued: ${queuedCount}, Buffered: ${bufferedCount}`
-);
-```
-
 ## 🎯 Custom Events & User Identification
-
-### User Identification
-
-The SDK supports user identification through the `identify()` method, which creates an "identify" event and sets the user ID for all subsequent events.
-
-```typescript
-// Initialize with custom events enabled
-const telemetry = initTelemetry({
-  hyperlookApiKey: "your-api-key",
-  enableCustomEvents: true,
-  sessionId: "custom-session-123", // Optional: provide custom session ID
-  userId: "user-456", // Optional: provide initial user ID
-});
-
-// Identify a user with traits
-telemetry.identify("user-789", {
-  name: "John Doe",
-  email: "john@example.com",
-  plan: "premium",
-  signupDate: "2024-01-15",
-});
-```
 
 ### Custom Events
 
-When `enableCustomEvents` is enabled, you can capture custom events using the CustomEventsPlugin:
+When `enableCustomEvents` is enabled, you can capture custom events:
 
 ```typescript
 const customPlugin = telemetry.getCustomEventsPlugin();
@@ -370,40 +262,7 @@ if (customPlugin) {
     price: 99.99,
     currency: "USD",
   });
-
-  // Capture a pre-built event object
-  const customEvent = {
-    eventType: "analytics",
-    eventName: "page_view",
-    payload: {
-      page: "/dashboard",
-      referrer: document.referrer,
-    },
-    timestamp: new Date().toISOString(),
-  };
-  customPlugin.captureEvent(customEvent);
 }
-```
-
-### Session Tracking
-
-All events automatically include session tracking. The session ID is either provided in the configuration or auto-generated:
-
-```typescript
-// Events automatically include session and user context
-telemetry.capture({
-  eventType: "interaction",
-  eventName: "button_click",
-  payload: {
-    buttonId: "submit-form",
-    page: "/contact",
-  },
-  timestamp: new Date().toISOString(),
-});
-
-// The above event will automatically include:
-// - sessionId: "custom-session-123" (or auto-generated)
-// - userId: "user-789" (if identified)
 ```
 
 ## 🚀 Features
@@ -421,173 +280,39 @@ telemetry.capture({
 - **Custom Events**: Capture user-defined events with flexible payloads
 - **Session Tracking**: Automatic session ID generation and tracking
 - **Input Validation**: Comprehensive validation and sanitization of all user data
-- **Automatic Shutdown**: Ensures events are flushed when the application closes (browser unload, Node.js process termination)
-
-## 🔄 TelemetryTracker Compatibility
-
-The SDK is designed to be fully compatible with the TelemetryTracker format. All events are sent to Hyperlook in the exact same format and structure as your TelemetryTracker implementation:
-
-### Event Format Compatibility
-
-All events include the same properties as TelemetryTracker:
-
-- `event_id`: Auto-generated unique event ID
-- `user_id`: User identification (if provided)
-- `session_id`: Session tracking
-- `event_type`: Event category (page, network, error, etc.)
-- `event_name`: Specific event name
-- `properties`: Event-specific data
-- `user_properties`: User-specific data
-- `page_url`: Current page URL
-- `page_title`: Page title
-- `referrer`: Referrer URL
-- `user_agent`: Browser user agent
-- `timestamp`: ISO timestamp
-
-### API Key Configuration
-
-The SDK requires a Hyperlook API key to be provided:
-
-- **Required**: Must provide `hyperlookApiKey` in configuration
-- **Security**: No default API key is used for security reasons
-- **Configuration**: Set via `hyperlookApiKey` parameter in `initTelemetry()`
-
-### Event Type Mapping
-
-| TelemetryTracker Event        | SDK Event                     | Properties                                                                                                                                 |
-| ----------------------------- | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| `PAGE_HIT`                    | `page_hit`                    | viewport, characterSet, language, cookieEnabled, onLine, platform, userAgent, referrer, url, title                                         |
-| `XHR_COMPLETE`                | `xhr_complete`                | url, method, queryParams, responseStatus, responseStatusText, responseHeaders, responseBody, duration, startTime, endTime, isSupabaseQuery |
-| `FETCH_COMPLETE`              | `fetch_complete`              | url, method, queryParams, responseStatus, responseStatusText, responseHeaders, responseBody, duration, startTime, endTime, isSupabaseQuery |
-| `SUPABASE_XHR_COMPLETE`       | `supabase_xhr_complete`       | url, method, queryParams, responseStatus, responseStatusText, responseHeaders, responseBody, duration, startTime, endTime, isSupabaseQuery |
-| `SUPABASE_FETCH_COMPLETE`     | `supabase_fetch_complete`     | url, method, queryParams, responseStatus, responseStatusText, responseHeaders, responseBody, duration, startTime, endTime, isSupabaseQuery |
-| `SUPABASE_XHR_ERROR`          | `supabase_xhr_error`          | url, method, queryParams, error, duration, startTime, endTime, isSupabaseQuery                                                             |
-| `SUPABASE_FETCH_ERROR`        | `supabase_fetch_error`        | url, method, queryParams, error, duration, startTime, endTime, isSupabaseQuery                                                             |
-| `JAVASCRIPT_ERROR`            | `javascript_error`            | message, filename, lineno, colno, error, stack                                                                                             |
-| `UNHANDLED_PROMISE_REJECTION` | `unhandled_promise_rejection` | reason, promise                                                                                                                            |
+- **Automatic Shutdown**: Ensures events are flushed when the application closes
 
 ## 📊 Event Types
 
 The SDK automatically captures various types of events:
 
-### Automatic Events
-
-- **Page View Events**: Automatic page_hit events when someone first visits a page or navigates to a new page (React/Next.js client-side routing)
+- **Page View Events**: Automatic page_hit events when someone first visits a page or navigates to a new page
 - **Click Events**: User interactions with DOM elements
 - **Network Events**: HTTP requests and responses (fetch, XHR)
 - **Performance Events**: Page load metrics, Core Web Vitals, long tasks
 - **Log Events**: Console logs (log, warn, error, info, debug)
 - **Error Events**: JavaScript errors and exceptions
 
-### Custom Events
-
-Enables capturing custom events with user-defined types, names, and payloads. Must be enabled via `enableCustomEvents: true` in the configuration.
-
-```typescript
-const customPlugin = telemetry.getCustomEventsPlugin();
-if (customPlugin) {
-  customPlugin.captureCustomEvent("ecommerce", "purchase", {
-    productId: "prod_123",
-    amount: 99.99,
-  });
-}
-```
-
 ## 🔌 Plugin System
 
 The SDK uses a plugin architecture for extensibility. Built-in plugins include:
 
-### PageViewPlugin
-
-Automatically captures page_hit events when someone first visits a page and on client-side navigation in React/Next.js applications. Includes viewport information, browser details, and page metadata. Now supports:
-
-- **Initial page loads**: Captures page view when the page first loads
-- **React Router navigation**: Safely tracks URL and title changes without interfering with routing
-- **Next.js client-side routing**: Automatically detects and tracks navigation using safe polling
-- **Browser navigation**: Captures back/forward button usage
-- **Duplicate prevention**: Avoids sending multiple events for the same URL/title combination
-- **Navigation flag**: Includes `isNavigation` flag to distinguish initial loads from navigation
-
-### ClickPlugin
-
-Tracks user click events with element information.
-
-### LogPlugin
-
-Intercepts and tracks console.log, console.error, etc.
-
-### NetworkPlugin
-
-Monitors fetch and XMLHttpRequest calls with automatic Supabase detection and differentiation.
-
-**Features:**
-
-- **Automatic Supabase Detection**: Automatically detects requests to Supabase endpoints (URLs containing "supabase.co" or "supabase.com")
-- **Event Differentiation**: Sends separate event types for Supabase vs regular network requests
-- **Complete Request Tracking**: Captures both successful and failed requests
-- **Rich Metadata**: Includes response status, headers, body, timing, and query parameters
-
-**Event Types:**
-
-- **Supabase Events**: `supabase_fetch_complete`, `supabase_fetch_error`, `supabase_xhr_complete`, `supabase_xhr_error`
-- **Regular Network Events**: `fetch_complete`, `fetch_error`, `xhr_complete`, `xhr_error`
-
-**Event Properties:**
-
-- `url`: Request URL
-- `method`: HTTP method (GET, POST, etc.)
-- `queryParams`: URL query parameters
-- `responseStatus`: HTTP status code
-- `responseStatusText`: HTTP status text
-- `responseHeaders`: Response headers
-- `responseBody`: Response body (when available)
-- `duration`: Request duration in milliseconds
-- `startTime`: Request start timestamp
-- `endTime`: Request end timestamp
-- `isSupabaseQuery`: Boolean flag indicating if it's a Supabase request
-- `error`: Error message (for failed requests)
-
-### ErrorPlugin
-
-Captures JavaScript errors and unhandled promise rejections.
-
-### PerformancePlugin
-
-Collects performance metrics including Web Vitals.
-
-### CustomEventsPlugin
-
-Enables capturing custom events with user-defined types, names, and payloads. Must be enabled via `enableCustomEvents: true` in the configuration.
-
-```typescript
-const customPlugin = telemetry.getCustomEventsPlugin();
-if (customPlugin) {
-  customPlugin.captureCustomEvent("ecommerce", "purchase", {
-    productId: "prod_123",
-    amount: 99.99,
-  });
-}
-```
+- **PageViewPlugin**: Automatically captures page view events
+- **ClickPlugin**: Tracks user click events with element information
+- **LogPlugin**: Intercepts and tracks console logs
+- **NetworkPlugin**: Monitors fetch and XMLHttpRequest calls
+- **ErrorPlugin**: Captures JavaScript errors and unhandled promise rejections
+- **PerformancePlugin**: Collects performance metrics including Web Vitals
+- **CustomEventsPlugin**: Enables capturing custom events
 
 ## 🛡️ Error Handling
 
 The SDK includes comprehensive error handling:
 
-### Graceful Degradation
-
-If initialization fails, the SDK returns a no-op manager that won't crash your application.
-
-### Plugin Error Isolation
-
-Each plugin has its own error boundaries. If one plugin fails, others continue working.
-
-### Event-Level Error Handling
-
-Individual event failures don't affect the processing of other events.
-
-### Automatic Retry
-
-Failed network requests are automatically retried with exponential backoff.
+- **Graceful Degradation**: If initialization fails, the SDK returns a no-op manager
+- **Plugin Error Isolation**: Each plugin has its own error boundaries
+- **Event-Level Error Handling**: Individual event failures don't affect other events
+- **Automatic Retry**: Failed network requests are automatically retried
 
 ## 🌍 Environment Support
 
@@ -599,17 +324,9 @@ The SDK automatically detects the environment and enables appropriate features:
 
 ## 📈 Performance Considerations
 
-### Event Batching
-
-Events are automatically batched to reduce network overhead.
-
-### Sampling
-
-Use sampling to reduce data volume in high-traffic applications.
-
-### Memory Management
-
-Failed events are automatically cleaned up to prevent memory leaks.
+- **Event Batching**: Events are automatically batched to reduce network overhead
+- **Sampling**: Use sampling to reduce data volume in high-traffic applications
+- **Memory Management**: Failed events are automatically cleaned up to prevent memory leaks
 
 ## 🔒 Privacy & Security
 
