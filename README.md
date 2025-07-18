@@ -16,7 +16,9 @@ pnpm add @hyperlook/telemetry-sdk
 
 ### Next.js Applications
 
-Create a client component for telemetry initialization:
+**Step 1: Create a Telemetry Provider Component**
+
+Create a new file `components/TelemetryProvider.tsx`:
 
 ```tsx
 "use client";
@@ -24,9 +26,9 @@ Create a client component for telemetry initialization:
 import { useEffect } from "react";
 import { initTelemetry } from "@hyperlook/telemetry-sdk";
 
-function TelemetryProvider() {
+export default function TelemetryProvider() {
   useEffect(() => {
-    let telemetry = initTelemetry({
+    const telemetry = initTelemetry({
       hyperlookApiKey: "your-api-key", // Replace with your Hyperlook API key
     });
 
@@ -34,15 +36,17 @@ function TelemetryProvider() {
       telemetry.destroy();
     };
   }, []);
-}
 
-export default TelemetryProvider;
+  return null; // This component doesn't render anything
+}
 ```
 
-Then add it to your `layout.{tsx,jsx,ts,js}`:
+**Step 2: Add to Your Root Layout**
+
+Update your `app/layout.tsx` (or `pages/_app.tsx` for Pages Router):
 
 ```tsx
-import TelemetryProvider from "./TelemetryProvider";
+import TelemetryProvider from "@/components/TelemetryProvider";
 
 export default function RootLayout({
   children,
