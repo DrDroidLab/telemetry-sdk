@@ -6,19 +6,13 @@ A lightweight, configurable telemetry tracking library for JavaScript/TypeScript
 
 ```bash
 npm install @hyperlook/telemetry-sdk
-# or
-yarn add @hyperlook/telemetry-sdk
-# or
-pnpm add @hyperlook/telemetry-sdk
 ```
 
-## 🚀 Quick Start
+## 🚀 Quick Start - Next.js
 
-### Next.js Applications
+**Copy and paste these exact files:**
 
-**Step 1: Create a Telemetry Provider Component**
-
-Create a new file `components/TelemetryProvider.tsx`:
+### 1. Create `components/TelemetryProvider.tsx`
 
 ```tsx
 "use client";
@@ -29,7 +23,7 @@ import { initTelemetry } from "@hyperlook/telemetry-sdk";
 export default function TelemetryProvider() {
   useEffect(() => {
     const telemetry = initTelemetry({
-      hyperlookApiKey: "your-api-key", // Replace with your Hyperlook API key
+      hyperlookApiKey: "your-api-key", // Replace with your actual API key
     });
 
     return () => {
@@ -37,13 +31,11 @@ export default function TelemetryProvider() {
     };
   }, []);
 
-  return null; // This component doesn't render anything
+  return null;
 }
 ```
 
-**Step 2: Add to Your Root Layout**
-
-Update your `app/layout.tsx` (or `pages/_app.tsx` for Pages Router):
+### 2. Update `app/layout.tsx`
 
 ```tsx
 import TelemetryProvider from "@/components/TelemetryProvider";
@@ -64,22 +56,56 @@ export default function RootLayout({
 }
 ```
 
-### React Applications
+**That's it!** Your app will now automatically track:
+
+- Page views
+- User clicks
+- Console logs
+- Network requests
+- Performance metrics
+
+### Optional: Add User Identification
+
+In any component where you have user data:
 
 ```tsx
-// In your main App component or entry point
+"use client";
+
+import { useEffect } from "react";
+import { initTelemetry } from "@hyperlook/telemetry-sdk";
+
+export default function UserProfile({ user }) {
+  useEffect(() => {
+    const telemetry = initTelemetry({
+      hyperlookApiKey: "your-api-key",
+    });
+
+    if (user) {
+      telemetry.identify(user.id, {
+        name: user.name,
+        email: user.email,
+      });
+    }
+
+    return () => {
+      telemetry.destroy();
+    };
+  }, [user]);
+
+  return <div>{/* Your component content */}</div>;
+}
+```
+
+## 🚀 Quick Start - React (Non-Next.js)
+
+```tsx
 import { useEffect } from "react";
 import { initTelemetry } from "@hyperlook/telemetry-sdk";
 
 function App() {
   useEffect(() => {
-    // Initialize telemetry once when the app starts
     const telemetry = initTelemetry({
-      hyperlookApiKey: "your-api-key", // Replace with your Hyperlook API key
-      enableClicks: true,
-      enableLogs: true,
-      enableNetwork: true,
-      enablePerformance: true,
+      hyperlookApiKey: "your-api-key", // Replace with your actual API key
     });
 
     // Optional: Identify the user
@@ -95,22 +121,16 @@ function App() {
 export default App;
 ```
 
-### Basic Usage (Any JavaScript/TypeScript Application)
+## 🚀 Quick Start - Vanilla JavaScript/TypeScript
 
 ```typescript
 import { initTelemetry } from "@hyperlook/telemetry-sdk";
 
-// Initialize with default configuration
 const telemetry = initTelemetry({
-  hyperlookApiKey: "your-api-key", // Replace with your Hyperlook API key
-  enableClicks: true,
-  enableLogs: true,
-  enableNetwork: true,
-  enablePerformance: true,
-  enableCustomEvents: true, // Enable custom events
+  hyperlookApiKey: "your-api-key", // Replace with your actual API key
 });
 
-// Identify a user (optional)
+// Optional: Identify a user
 telemetry.identify("user-123", {
   name: "John Doe",
   email: "john@example.com",
