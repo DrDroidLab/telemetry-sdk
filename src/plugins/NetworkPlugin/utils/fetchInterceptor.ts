@@ -7,6 +7,7 @@ import {
 } from "./index";
 import { isSupabaseUrl } from "../../../utils";
 import { HYPERLOOK_URL } from "../../../constants";
+import { isStreamingResponse } from "./streamingDetection";
 
 export type FetchInterceptorContext = {
   originalFetch: typeof fetch;
@@ -59,6 +60,18 @@ export const createFetchInterceptor = (context: FetchInterceptorContext) => {
           : "fetch_complete";
         const eventType = isSupabaseQuery ? "supabase" : "network";
 
+        // Streaming-safe body extraction
+        let responseBody: unknown = undefined;
+        if (!isStreamingResponse(response)) {
+          responseBody = await extractResponseBody(response);
+        } else {
+          // NOTE: To capture the body after a streaming response is fully consumed,
+          // you would need to intercept and buffer the stream as it is read by the application.
+          // This is complex, can impact performance, and may break consumer expectations.
+          // If needed, implement a ReadableStream tee() here and buffer chunks, then
+          // reconstruct the body after the stream ends. This is not recommended for most telemetry use cases.
+        }
+
         const evt: NetworkEvent = {
           eventType: eventType,
           eventName: eventName,
@@ -69,7 +82,7 @@ export const createFetchInterceptor = (context: FetchInterceptorContext) => {
             responseStatus: response.status,
             responseStatusText: response.statusText,
             responseHeaders: extractResponseHeaders(response),
-            responseBody: await extractResponseBody(response),
+            responseBody, // Will be undefined for streaming responses
             duration,
             startTime,
             endTime: endTime,

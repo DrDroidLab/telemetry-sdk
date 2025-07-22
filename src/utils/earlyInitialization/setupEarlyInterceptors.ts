@@ -4,6 +4,7 @@ import { isSupabaseUrl } from "../isSupabaseUrl";
 import { extractResponseHeaders } from "./extractResponseHeaders";
 import { extractResponseBody } from "./extractResponseBody";
 import { extractQueryParams } from "./extractQueryParams";
+import { isStreamingResponse } from "../../plugins/NetworkPlugin/utils/streamingDetection";
 
 // Global early event queue for requests made before SDK initialization
 export const earlyEventQueue: TelemetryEvent[] = [];
@@ -64,6 +65,12 @@ export const setupModuleLevelEarlyInterceptors = () => {
         : "fetch_complete";
 
       // Queue the request for later processing
+      let responseBody: unknown = undefined;
+      if (!isStreamingResponse(response)) {
+        responseBody = await extractResponseBody(response);
+      } else {
+        // NOTE: Streaming response: not extracting body to avoid breaking streaming consumers.
+      }
       earlyEventQueue.push({
         eventType,
         eventName,
@@ -73,7 +80,7 @@ export const setupModuleLevelEarlyInterceptors = () => {
           responseStatus: response.status,
           responseStatusText: response.statusText,
           responseHeaders: extractResponseHeaders(response),
-          responseBody: await extractResponseBody(response),
+          responseBody, // Will be undefined for streaming responses
           duration: endTime - startTime,
           startTime,
           endTime,
