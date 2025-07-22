@@ -9,7 +9,18 @@ export function transformEvent(event: TelemetryEvent): HyperlookEvent {
   const limitedProperties = limitPropertiesSize(payload);
 
   // Properties should never be null since limitPropertiesSize ensures at least a message field
-  const properties = limitedProperties;
+  const properties = { ...limitedProperties };
+
+  // Ensure method, url, and responseStatus are always present if available
+  if (typeof payload.method === "string") {
+    properties.method = payload.method;
+  }
+  if (typeof payload.url === "string") {
+    properties.url = payload.url;
+  }
+  if (typeof payload.responseStatus === "number") {
+    properties.responseStatus = payload.responseStatus;
+  }
 
   const transformed: HyperlookEvent = {
     event_id: generateEventId(),
