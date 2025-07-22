@@ -59,7 +59,7 @@ export abstract class BasePlugin {
     }
   }
 
-  protected abstract isSupported(): boolean;
+  public abstract isSupported(): boolean;
   protected abstract setup(): void;
 
   protected safeCapture(event: TelemetryEvent): void {

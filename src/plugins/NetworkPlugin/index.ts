@@ -1,38 +1,27 @@
 import { BasePlugin } from "../BasePlugin";
 import type { TelemetryManager } from "../../TelemetryManager";
-import {
-  isNetworkSupported,
-  initializeOriginalFetch,
-  createOriginalXHROpen,
-  createOriginalXHRSend,
-  setupFetchInterceptor,
-  setupXHRInterceptors,
-} from "./utils";
+import { patchFetch, patchXHR } from "./utils/unifiedInterceptors";
 
 export class NetworkPlugin extends BasePlugin {
-  private originalFetch!: typeof fetch;
-  private originalXHROpen!: typeof XMLHttpRequest.prototype.open;
-  private originalXHRSend!: typeof XMLHttpRequest.prototype.send;
-  private unregister: (() => void) | null = null;
+  private unpatchFetch: (() => void) | null = null;
+  private unpatchXHR: (() => void) | null = null;
   private telemetryEndpoint: string = "";
   private xhrHandlers = new WeakMap<XMLHttpRequest, () => void>();
   private patchedXHRs = new Set<XMLHttpRequest>();
   private cleanupInterval: NodeJS.Timeout | null = null;
 
-  protected isSupported(): boolean {
-    return isNetworkSupported();
+  public isSupported(): boolean {
+    // Simple browser check for fetch and XMLHttpRequest
+    return (
+      typeof window !== "undefined" &&
+      typeof window.fetch !== "undefined" &&
+      typeof XMLHttpRequest !== "undefined"
+    );
   }
 
   constructor() {
     super();
-    if (this.isSupported()) {
-      this.originalFetch = initializeOriginalFetch();
-      // Only initialize XHR if we're in a browser environment
-      if (typeof XMLHttpRequest !== "undefined") {
-        this.originalXHROpen = createOriginalXHROpen();
-        this.originalXHRSend = createOriginalXHRSend();
-      }
-    }
+    // No need to store original fetch/XHR after unification
   }
 
   initialize(manager: TelemetryManager) {
@@ -48,26 +37,20 @@ export class NetworkPlugin extends BasePlugin {
     }
 
     try {
-      // Set up fetch interceptor
-      this.unregister = setupFetchInterceptor({
-        originalFetch: this.originalFetch,
+      // Set up unified fetch interceptor
+      this.unpatchFetch = patchFetch({
+        handleTelemetryEvent: this.safeCapture.bind(this),
         telemetryEndpoint: this.telemetryEndpoint,
-        safeCapture: this.safeCapture.bind(this),
         logger: this.logger,
       });
 
-      // Set up XHR interceptors only if XMLHttpRequest is available
+      // Set up unified XHR interceptor
       if (typeof XMLHttpRequest !== "undefined") {
-        const xhrInterceptors = setupXHRInterceptors({
+        this.unpatchXHR = patchXHR({
+          handleTelemetryEvent: this.safeCapture.bind(this),
           telemetryEndpoint: this.telemetryEndpoint,
-          safeCapture: this.safeCapture.bind(this),
-          xhrHandlers: this.xhrHandlers,
-          patchedXHRs: this.patchedXHRs,
+          logger: this.logger,
         });
-
-        this.originalXHROpen = xhrInterceptors.originalOpen;
-        this.originalXHRSend = xhrInterceptors.originalSend;
-
         // Set up periodic cleanup to prevent memory leaks
         this.setupCleanupInterval();
       }
@@ -138,25 +121,15 @@ export class NetworkPlugin extends BasePlugin {
       }
 
       // Restore fetch
-      if (this.unregister) {
-        this.unregister();
-        this.unregister = null;
+      if (this.unpatchFetch) {
+        this.unpatchFetch();
+        this.unpatchFetch = null;
       }
 
       // Restore XMLHttpRequest only if it was available
-      if (
-        typeof XMLHttpRequest !== "undefined" &&
-        this.originalXHROpen &&
-        this.originalXHRSend
-      ) {
-        try {
-          XMLHttpRequest.prototype.open = this.originalXHROpen;
-          XMLHttpRequest.prototype.send = this.originalXHRSend;
-        } catch (error) {
-          this.logger.error("Failed to restore XMLHttpRequest prototypes", {
-            error: error instanceof Error ? error.message : String(error),
-          });
-        }
+      if (this.unpatchXHR) {
+        this.unpatchXHR();
+        this.unpatchXHR = null;
       }
 
       // Clean up XHR handlers

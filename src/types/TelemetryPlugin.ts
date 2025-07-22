@@ -12,4 +12,6 @@ export type TelemetryPlugin = {
   teardown?(): void;
   /** Destroy the plugin and clean up all resources */
   destroy?(): void;
+  /** Returns true if the plugin is supported in the current environment (e.g., browser vs SSR) */
+  isSupported?(): boolean;
 };

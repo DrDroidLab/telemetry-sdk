@@ -67,7 +67,7 @@ export class ErrorPlugin extends BasePlugin {
     }
   };
 
-  protected isSupported(): boolean {
+  public isSupported(): boolean {
     return typeof window !== "undefined";
   }
 

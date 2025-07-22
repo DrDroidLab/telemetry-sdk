@@ -89,7 +89,7 @@ export class ClickPlugin extends BasePlugin {
     }
   };
 
-  protected isSupported(): boolean {
+  public isSupported(): boolean {
     return typeof window !== "undefined" && typeof document !== "undefined";
   }
 

@@ -16,7 +16,7 @@ export class PerformancePlugin extends BasePlugin {
   private layoutShiftObserver: PerformanceObserver | null = null;
   private pageLoadTimeout: NodeJS.Timeout | null = null;
 
-  protected isSupported(): boolean {
+  public isSupported(): boolean {
     return isPerformanceSupported();
   }
 

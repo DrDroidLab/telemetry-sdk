@@ -67,6 +67,13 @@ export class PluginManager {
       pluginConfigs.forEach(({ enabled, plugin, isCustomEvents }) => {
         if (enabled) {
           const pluginInstance = new plugin();
+          if (
+            typeof pluginInstance.isSupported === "function" &&
+            !pluginInstance.isSupported?.()
+          ) {
+            // Skip plugins not supported in this environment
+            return;
+          }
           if (isCustomEvents) {
             this.customEventsPlugin = pluginInstance as CustomEventsPlugin;
           }
@@ -78,7 +85,7 @@ export class PluginManager {
         totalPlugins: pluginsToRegister.length,
         enabledPlugins: pluginsToRegister.map(p => p.constructor.name),
       });
-    } catch (error) {
+    } catch (error: unknown) {
       this.logger.error("Failed to initialize plugins", {
         error: error instanceof Error ? error.message : String(error),
       });

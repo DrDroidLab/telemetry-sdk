@@ -5,7 +5,7 @@ import { setupConsoleInterceptors } from "./utils";
 export class LogPlugin extends BasePlugin {
   private originals: Partial<Record<ConsoleMethod, typeof console.log>> = {};
 
-  protected isSupported(): boolean {
+  public isSupported(): boolean {
     return typeof console !== "undefined";
   }
 

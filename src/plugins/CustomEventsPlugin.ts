@@ -14,7 +14,7 @@ export class CustomEventsPlugin extends BasePlugin {
     "sdk",
   ]);
 
-  protected isSupported(): boolean {
+  public isSupported(): boolean {
     return true; // Custom events are always supported
   }
 
