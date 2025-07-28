@@ -10,6 +10,7 @@ export interface SSEInterceptorOptions {
   logger?: Logger;
   maxMessageSize?: number;
   maxMessagesPerConnection?: number;
+  captureStreamingMessages?: boolean;
 }
 
 interface SSEConnectionState {
@@ -28,6 +29,7 @@ export function patchEventSource({
   logger,
   maxMessageSize = 10000, // 10KB per message
   maxMessagesPerConnection = 1000, // Max messages to capture per connection
+  captureStreamingMessages = false,
 }: SSEInterceptorOptions): () => void {
   if (
     typeof window === "undefined" ||
@@ -104,66 +106,68 @@ export function patchEventSource({
         }
       });
 
-      // Capture individual messages
-      this.addEventListener("message", messageEvent => {
-        if (connectionState.messageCount >= maxMessagesPerConnection) {
-          return; // Stop capturing after max messages
-        }
-
-        connectionState.messageCount++;
-        connectionState.lastEventId = messageEvent.lastEventId;
-
-        let messageData: unknown = messageEvent.data;
-
-        // Try to parse JSON data
-        if (typeof messageEvent.data === "string") {
-          try {
-            messageData = JSON.parse(messageEvent.data);
-          } catch {
-            // Keep as string if not JSON
-            messageData = messageEvent.data;
+      // Capture individual messages only if enabled
+      if (captureStreamingMessages) {
+        this.addEventListener("message", messageEvent => {
+          if (connectionState.messageCount >= maxMessagesPerConnection) {
+            return; // Stop capturing after max messages
           }
-        }
 
-        // Truncate large messages
-        if (
-          typeof messageData === "string" &&
-          messageData.length > maxMessageSize
-        ) {
-          messageData =
-            messageData.substring(0, maxMessageSize) + "... [truncated]";
-        }
+          connectionState.messageCount++;
+          connectionState.lastEventId = messageEvent.lastEventId;
 
-        const event: TelemetryEvent<NetworkEventPayload> = {
-          eventType: "network",
-          eventName: "sse_message_received",
-          payload: {
-            url: urlString,
-            method: "GET",
-            responseStatus: 200,
-            responseStatusText: "OK",
-            responseBody: messageData,
-            duration: performance.now() - startTime,
-            startTime,
-            endTime: performance.now(),
-            isSupabaseQuery: urlString.includes("supabase"),
-            isStreaming: true,
-            isKeepAlive: true,
-            connectionId,
-            sseState: "message",
-            sseMessageId: messageEvent.lastEventId,
-            sseMessageType: messageEvent.type,
-            sseMessageCount: connectionState.messageCount,
-          },
-          timestamp: new Date().toISOString(),
-        };
+          let messageData: unknown = messageEvent.data;
 
-        try {
-          handleTelemetryEvent(event);
-        } catch (err) {
-          logger?.error("Error handling SSE message event", { error: err });
-        }
-      });
+          // Try to parse JSON data
+          if (typeof messageEvent.data === "string") {
+            try {
+              messageData = JSON.parse(messageEvent.data);
+            } catch {
+              // Keep as string if not JSON
+              messageData = messageEvent.data;
+            }
+          }
+
+          // Truncate large messages
+          if (
+            typeof messageData === "string" &&
+            messageData.length > maxMessageSize
+          ) {
+            messageData =
+              messageData.substring(0, maxMessageSize) + "... [truncated]";
+          }
+
+          const event: TelemetryEvent<NetworkEventPayload> = {
+            eventType: "network",
+            eventName: "sse_message_received",
+            payload: {
+              url: urlString,
+              method: "GET",
+              responseStatus: 200,
+              responseStatusText: "OK",
+              responseBody: messageData,
+              duration: performance.now() - startTime,
+              startTime,
+              endTime: performance.now(),
+              isSupabaseQuery: urlString.includes("supabase"),
+              isStreaming: true,
+              isKeepAlive: true,
+              connectionId,
+              sseState: "message",
+              sseMessageId: messageEvent.lastEventId,
+              sseMessageType: messageEvent.type,
+              sseMessageCount: connectionState.messageCount,
+            },
+            timestamp: new Date().toISOString(),
+          };
+
+          try {
+            handleTelemetryEvent(event);
+          } catch (err) {
+            logger?.error("Error handling SSE message event", { error: err });
+          }
+        });
+      }
 
       // Capture connection errors
       this.addEventListener("error", () => {
@@ -258,7 +262,8 @@ export function interceptStreamingResponse(
   url: string,
   startTime: number,
   handleTelemetryEvent: (event: TelemetryEvent<NetworkEventPayload>) => void,
-  logger?: Logger
+  logger?: Logger,
+  captureStreamingMessages: boolean = false
 ): void {
   const normalizedUrl = normalizeUrl(url);
 
@@ -315,7 +320,14 @@ export function interceptStreamingResponse(
       });
     }
 
-    // Read the stream
+    // Only process individual messages if enabled
+    if (!captureStreamingMessages) {
+      // Just capture start/end events, not individual messages
+      reader.releaseLock();
+      return;
+    }
+
+    // Read the stream and process messages
     const readStream = async (): Promise<void> => {
       try {
         while (true) {
@@ -459,7 +471,8 @@ export function interceptGenericStreamingResponse(
   url: string,
   startTime: number,
   handleTelemetryEvent: (event: TelemetryEvent<NetworkEventPayload>) => void,
-  logger?: Logger
+  logger?: Logger,
+  captureStreamingMessages: boolean = false
 ): void {
   const normalizedUrl = normalizeUrl(url);
 
@@ -509,7 +522,14 @@ export function interceptGenericStreamingResponse(
       });
     }
 
-    // Read the stream
+    // Only process individual chunks if enabled
+    if (!captureStreamingMessages) {
+      // Just capture start/end events, not individual chunks
+      reader.releaseLock();
+      return;
+    }
+
+    // Read the stream and process chunks
     const readStream = async (): Promise<void> => {
       try {
         while (true) {

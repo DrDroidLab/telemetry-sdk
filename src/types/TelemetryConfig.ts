@@ -20,4 +20,5 @@ export type TelemetryConfig = {
   sessionId?: string;
   userId?: string;
   enableCustomEvents?: boolean;
+  captureStreamingMessages?: boolean; // Enable capturing individual streaming messages/chunks
 };

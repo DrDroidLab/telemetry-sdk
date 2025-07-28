@@ -13,6 +13,7 @@ export const initialTelemetryConfig: TelemetryConfig = {
   enablePerformance: false,
   enableErrors: false, // Enable error tracking by default
   enableCustomEvents: false, // Disabled by default
+  captureStreamingMessages: false, // Disabled by default to avoid overwhelming telemetry
   flushInterval: 50000,
   maxRetries: 1,
   retryDelay: 1000,

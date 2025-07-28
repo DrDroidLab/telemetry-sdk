@@ -16,6 +16,7 @@ export interface FetchInterceptorOptions {
   shouldCaptureRequest?: (url: string) => boolean;
   telemetryEndpoint?: string;
   logger?: Logger;
+  captureStreamingMessages?: boolean;
 }
 
 export function patchFetch({
@@ -23,6 +24,7 @@ export function patchFetch({
   shouldCaptureRequest,
   telemetryEndpoint,
   logger,
+  captureStreamingMessages = false,
 }: FetchInterceptorOptions): () => void {
   if (typeof window === "undefined" || typeof window.fetch === "undefined") {
     throw new Error(
@@ -135,7 +137,8 @@ export function patchFetch({
                 url,
                 startTime,
                 handleTelemetryEvent,
-                logger
+                logger,
+                captureStreamingMessages
               );
             } else {
               // For other streaming responses, set up generic streaming interception
@@ -144,7 +147,8 @@ export function patchFetch({
                 url,
                 startTime,
                 handleTelemetryEvent,
-                logger
+                logger,
+                captureStreamingMessages
               );
             }
           } catch (error) {

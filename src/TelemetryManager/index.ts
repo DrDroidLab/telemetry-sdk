@@ -25,6 +25,7 @@ setupModuleLevelEarlyInterceptors();
 
 export class TelemetryManager {
   private state: TelemetryState = TelemetryState.INITIALIZING;
+  private config: TelemetryConfig;
   private logger: Logger;
   private sessionId!: string;
   private userId?: string;
@@ -42,6 +43,9 @@ export class TelemetryManager {
 
   constructor(config: TelemetryConfig) {
     validateConfig(config);
+
+    // Store config for later access
+    this.config = config;
 
     // Early interceptors are already set up at module level
     // No need to set them up again
@@ -286,6 +290,10 @@ export class TelemetryManager {
 
   getState(): TelemetryState {
     return this.state;
+  }
+
+  getConfig(): TelemetryConfig {
+    return this.config;
   }
 
   isShutdown(): boolean {

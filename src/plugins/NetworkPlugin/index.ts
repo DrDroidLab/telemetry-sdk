@@ -8,6 +8,7 @@ export class NetworkPlugin extends BasePlugin {
   private unpatchXHR: (() => void) | null = null;
   private unpatchEventSource: (() => void) | null = null;
   private telemetryEndpoint: string = "";
+  private captureStreamingMessages: boolean = false;
   private xhrHandlers = new WeakMap<XMLHttpRequest, () => void>();
   private patchedXHRs = new Set<XMLHttpRequest>();
   private cleanupInterval: NodeJS.Timeout | null = null;
@@ -29,6 +30,8 @@ export class NetworkPlugin extends BasePlugin {
   initialize(manager: TelemetryManager) {
     super.initialize(manager);
     this.telemetryEndpoint = manager.getEndpoint();
+    this.captureStreamingMessages =
+      manager.getConfig().captureStreamingMessages ?? false;
   }
 
   protected setup(): void {
@@ -44,6 +47,7 @@ export class NetworkPlugin extends BasePlugin {
         handleTelemetryEvent: this.safeCapture.bind(this),
         telemetryEndpoint: this.telemetryEndpoint,
         logger: this.logger,
+        captureStreamingMessages: this.captureStreamingMessages,
       });
 
       // Set up unified XHR interceptor
@@ -68,6 +72,7 @@ export class NetworkPlugin extends BasePlugin {
           logger: this.logger,
           maxMessageSize: 10000, // 10KB per SSE message
           maxMessagesPerConnection: 1000, // Max 1000 messages per connection
+          captureStreamingMessages: this.captureStreamingMessages,
         });
       }
 
