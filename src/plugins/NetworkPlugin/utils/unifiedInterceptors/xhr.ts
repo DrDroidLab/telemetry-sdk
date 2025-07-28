@@ -4,12 +4,40 @@ import type { NetworkEventPayload } from "../../types/NetworkEvent";
 import { extractQueryParams } from "../extractQueryParams";
 import { extractXHRResponseHeaders } from "../extractResponseHeaders";
 import { extractXHRResponseBody } from "../extractResponseBody";
+import { isSupabaseUrl } from "../../../../utils";
+import { normalizeUrl } from "../normalizeUrl";
 
 export interface XHRInterceptorOptions {
   handleTelemetryEvent: (event: TelemetryEvent<NetworkEventPayload>) => void;
   shouldCaptureRequest?: (url: string) => boolean;
   telemetryEndpoint?: string;
   logger?: Logger;
+}
+
+/**
+ * Check if XHR response indicates streaming
+ */
+function isXHRStreaming(xhr: XMLHttpRequest): boolean {
+  const contentType = xhr.getResponseHeader("content-type") || "";
+  const transferEncoding = xhr.getResponseHeader("transfer-encoding") || "";
+  const connection = xhr.getResponseHeader("connection") || "";
+
+  // Check for streaming content types
+  if (
+    contentType.toLowerCase().includes("text/event-stream") ||
+    contentType.toLowerCase().includes("application/stream") ||
+    transferEncoding.toLowerCase().includes("chunked")
+  ) {
+    return true;
+  }
+
+  // Check for keep-alive with no content-length (potential streaming)
+  const contentLength = xhr.getResponseHeader("content-length");
+  if (!contentLength && connection.toLowerCase().includes("keep-alive")) {
+    return true;
+  }
+
+  return false;
 }
 
 export function patchXHR({
@@ -42,7 +70,7 @@ export function patchXHR({
     user?: string | null,
     password?: string | null
   ) {
-    const urlStr = typeof url === "string" ? url : String(url);
+    const urlStr = normalizeUrl(url);
     const self = this as XMLHttpRequest & Record<string, unknown>;
     self._telemetryMethod = method;
     self._telemetryUrl = urlStr;
@@ -63,7 +91,7 @@ export function patchXHR({
       return originalSend.call(this, body);
     }
     let eventCaptured = false;
-    const isSupabase = url.includes("supabase");
+    const isSupabase = isSupabaseUrl(url);
     const cleanup = () => {
       this.removeEventListener("load", successHandler);
       this.removeEventListener("error", errorHandler);
@@ -75,6 +103,23 @@ export function patchXHR({
       eventCaptured = true;
       const endTime = performance.now();
       const duration = endTime - startTime;
+
+      // Check for streaming and keep-alive
+      const isStreaming = isXHRStreaming(this);
+      const connection = this.getResponseHeader("connection") || "";
+      const isKeepAlive = connection.toLowerCase().includes("keep-alive");
+
+      // Only extract response body for non-streaming responses
+      let responseBody: unknown = undefined;
+      if (!isStreaming) {
+        try {
+          responseBody = extractXHRResponseBody(this);
+        } catch (error) {
+          logger?.warn("Failed to extract XHR response body", { error });
+          responseBody = null;
+        }
+      }
+
       const event: TelemetryEvent<NetworkEventPayload> = {
         eventType: isSupabase ? "supabase" : "network",
         eventName: isSupabase ? "supabase_xhr_complete" : "xhr_complete",
@@ -85,11 +130,13 @@ export function patchXHR({
           responseStatus: this.status,
           responseStatusText: this.statusText,
           responseHeaders: extractXHRResponseHeaders(this),
-          responseBody: extractXHRResponseBody(this),
+          responseBody,
           duration,
           startTime,
           endTime,
           isSupabaseQuery: isSupabase,
+          isStreaming,
+          isKeepAlive,
         },
         timestamp: new Date().toISOString(),
       };
@@ -97,7 +144,7 @@ export function patchXHR({
         handleTelemetryEvent(event);
       } catch (err) {
         logger?.error("Telemetry handler error in XHR", { error: err });
-        throw err;
+        // Don't throw here to avoid breaking the original request
       }
       cleanup();
     };
@@ -129,7 +176,7 @@ export function patchXHR({
         logger?.error("Telemetry handler error in XHR (error case)", {
           error: err,
         });
-        throw err;
+        // Don't throw here to avoid breaking the original request
       }
       cleanup();
     };
@@ -161,7 +208,7 @@ export function patchXHR({
         logger?.error("Telemetry handler error in XHR (abort case)", {
           error: err,
         });
-        throw err;
+        // Don't throw here to avoid breaking the original request
       }
       cleanup();
     };

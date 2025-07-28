@@ -1,10 +1,12 @@
 import { BasePlugin } from "../BasePlugin";
 import type { TelemetryManager } from "../../TelemetryManager";
 import { patchFetch, patchXHR } from "./utils/unifiedInterceptors";
+import { patchEventSource } from "./utils/sseInterceptor";
 
 export class NetworkPlugin extends BasePlugin {
   private unpatchFetch: (() => void) | null = null;
   private unpatchXHR: (() => void) | null = null;
+  private unpatchEventSource: (() => void) | null = null;
   private telemetryEndpoint: string = "";
   private xhrHandlers = new WeakMap<XMLHttpRequest, () => void>();
   private patchedXHRs = new Set<XMLHttpRequest>();
@@ -55,12 +57,26 @@ export class NetworkPlugin extends BasePlugin {
         this.setupCleanupInterval();
       }
 
+      // Set up EventSource (SSE) interceptor
+      if (
+        typeof window !== "undefined" &&
+        typeof window.EventSource !== "undefined"
+      ) {
+        this.unpatchEventSource = patchEventSource({
+          handleTelemetryEvent: this.safeCapture.bind(this),
+          telemetryEndpoint: this.telemetryEndpoint,
+          logger: this.logger,
+          maxMessageSize: 10000, // 10KB per SSE message
+          maxMessagesPerConnection: 1000, // Max 1000 messages per connection
+        });
+      }
+
       // Early events are now processed by the TelemetryManager itself
       this.logger.info(
         "NetworkPlugin setup complete - early events handled by TelemetryManager"
       );
 
-      this.logger.info("NetworkPlugin setup complete");
+      this.logger.info("NetworkPlugin setup complete with SSE support");
     } catch (error) {
       this.logger.error("Failed to setup NetworkPlugin", {
         error: error instanceof Error ? error.message : String(error),
@@ -132,10 +148,16 @@ export class NetworkPlugin extends BasePlugin {
         this.unpatchXHR = null;
       }
 
+      // Restore EventSource
+      if (this.unpatchEventSource) {
+        this.unpatchEventSource();
+        this.unpatchEventSource = null;
+      }
+
       // Clean up XHR handlers
       this.cleanupAllXHRHandlers();
 
-      this.logger.info("NetworkPlugin teardown complete");
+      this.logger.info("NetworkPlugin teardown complete with SSE cleanup");
     } catch (error) {
       this.logger.error("Failed to teardown NetworkPlugin", {
         error: error instanceof Error ? error.message : String(error),

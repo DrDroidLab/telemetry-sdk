@@ -5,16 +5,16 @@ export const initialTelemetryConfig: TelemetryConfig = {
   endpoint: "https://api.your-domain.com/telemetry", // Replace with your actual telemetry endpoint
   hyperlookApiKey: "your-hyperlook-api-key-here", // Replace with your actual Hyperlook API key
   exporters: [ExporterType.HYPERLOOK],
-  enablePageViews: true, // Enable page view tracking by default
-  batchSize: 5,
-  enableClicks: true,
-  enableLogs: true,
+  enablePageViews: false, // Enable page view tracking by default
+  batchSize: 100,
+  enableClicks: false,
+  enableLogs: false,
   enableNetwork: true,
-  enablePerformance: true,
-  enableErrors: true, // Enable error tracking by default
+  enablePerformance: false,
+  enableErrors: false, // Enable error tracking by default
   enableCustomEvents: false, // Disabled by default
-  flushInterval: 10000,
-  maxRetries: 3,
+  flushInterval: 50000,
+  maxRetries: 1,
   retryDelay: 1000,
   samplingRate: 1.0,
 };

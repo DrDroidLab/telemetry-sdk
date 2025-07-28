@@ -1,0 +1,563 @@
+import type { TelemetryEvent } from "../../../types";
+import type { Logger } from "../../../types/Logger";
+import type { NetworkEventPayload } from "../types/NetworkEvent";
+import { normalizeUrl } from "./normalizeUrl";
+
+export interface SSEInterceptorOptions {
+  handleTelemetryEvent: (event: TelemetryEvent<NetworkEventPayload>) => void;
+  shouldCaptureRequest?: (url: string) => boolean;
+  telemetryEndpoint?: string;
+  logger?: Logger;
+  maxMessageSize?: number;
+  maxMessagesPerConnection?: number;
+}
+
+interface SSEConnectionState {
+  url: string;
+  startTime: number;
+  messageCount: number;
+  lastEventId?: string;
+  readyState: number;
+  connectionId: string;
+}
+
+export function patchEventSource({
+  handleTelemetryEvent,
+  shouldCaptureRequest,
+  telemetryEndpoint,
+  logger,
+  maxMessageSize = 10000, // 10KB per message
+  maxMessagesPerConnection = 1000, // Max messages to capture per connection
+}: SSEInterceptorOptions): () => void {
+  if (
+    typeof window === "undefined" ||
+    typeof window.EventSource === "undefined"
+  ) {
+    logger?.warn("EventSource not available in this environment");
+    return () => {};
+  }
+
+  const originalEventSource = window.EventSource;
+  const activeConnections = new Map<EventSource, SSEConnectionState>();
+
+  const defaultShouldCapture = (url: string) => {
+    if (telemetryEndpoint && url.includes(telemetryEndpoint)) return false;
+    if (url.includes("hyperlook")) return false;
+    return true;
+  };
+
+  const captureCheck = shouldCaptureRequest || defaultShouldCapture;
+
+  class InterceptedEventSource extends originalEventSource {
+    constructor(url: string | URL, eventSourceInitDict?: EventSourceInit) {
+      const urlString = normalizeUrl(url);
+
+      super(url, eventSourceInitDict);
+
+      if (!captureCheck(urlString)) {
+        return;
+      }
+
+      const connectionId = `sse_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      const startTime = performance.now();
+
+      // Track connection state
+      const connectionState: SSEConnectionState = {
+        url: urlString,
+        startTime,
+        messageCount: 0,
+        readyState: this.readyState,
+        connectionId,
+      };
+
+      activeConnections.set(this, connectionState);
+
+      // Capture connection opened
+      this.addEventListener("open", () => {
+        connectionState.readyState = this.readyState;
+        const event: TelemetryEvent<NetworkEventPayload> = {
+          eventType: "network",
+          eventName: "sse_connection_opened",
+          payload: {
+            url: urlString,
+            method: "GET",
+            responseStatus: 200,
+            responseStatusText: "OK",
+            duration: performance.now() - startTime,
+            startTime,
+            endTime: performance.now(),
+            isSupabaseQuery: urlString.includes("supabase"),
+            isStreaming: true,
+            isKeepAlive: true,
+            connectionId,
+            sseState: "connected",
+          },
+          timestamp: new Date().toISOString(),
+        };
+
+        try {
+          handleTelemetryEvent(event);
+        } catch (err) {
+          logger?.error("Error handling SSE connection opened event", {
+            error: err,
+          });
+        }
+      });
+
+      // Capture individual messages
+      this.addEventListener("message", messageEvent => {
+        if (connectionState.messageCount >= maxMessagesPerConnection) {
+          return; // Stop capturing after max messages
+        }
+
+        connectionState.messageCount++;
+        connectionState.lastEventId = messageEvent.lastEventId;
+
+        let messageData: unknown = messageEvent.data;
+
+        // Try to parse JSON data
+        if (typeof messageEvent.data === "string") {
+          try {
+            messageData = JSON.parse(messageEvent.data);
+          } catch {
+            // Keep as string if not JSON
+            messageData = messageEvent.data;
+          }
+        }
+
+        // Truncate large messages
+        if (
+          typeof messageData === "string" &&
+          messageData.length > maxMessageSize
+        ) {
+          messageData =
+            messageData.substring(0, maxMessageSize) + "... [truncated]";
+        }
+
+        const event: TelemetryEvent<NetworkEventPayload> = {
+          eventType: "network",
+          eventName: "sse_message_received",
+          payload: {
+            url: urlString,
+            method: "GET",
+            responseStatus: 200,
+            responseStatusText: "OK",
+            responseBody: messageData,
+            duration: performance.now() - startTime,
+            startTime,
+            endTime: performance.now(),
+            isSupabaseQuery: urlString.includes("supabase"),
+            isStreaming: true,
+            isKeepAlive: true,
+            connectionId,
+            sseState: "message",
+            sseMessageId: messageEvent.lastEventId,
+            sseMessageType: messageEvent.type,
+            sseMessageCount: connectionState.messageCount,
+          },
+          timestamp: new Date().toISOString(),
+        };
+
+        try {
+          handleTelemetryEvent(event);
+        } catch (err) {
+          logger?.error("Error handling SSE message event", { error: err });
+        }
+      });
+
+      // Capture connection errors
+      this.addEventListener("error", () => {
+        connectionState.readyState = this.readyState;
+        const event: TelemetryEvent<NetworkEventPayload> = {
+          eventType: "network",
+          eventName: "sse_connection_error",
+          payload: {
+            url: urlString,
+            method: "GET",
+            error: "SSE connection error",
+            duration: performance.now() - startTime,
+            startTime,
+            endTime: performance.now(),
+            isSupabaseQuery: urlString.includes("supabase"),
+            isStreaming: true,
+            isKeepAlive: false,
+            connectionId,
+            sseState: "error",
+            sseMessageCount: connectionState.messageCount,
+          },
+          timestamp: new Date().toISOString(),
+        };
+
+        try {
+          handleTelemetryEvent(event);
+        } catch (err) {
+          logger?.error("Error handling SSE error event", { error: err });
+        }
+
+        // Clean up connection state
+        activeConnections.delete(this);
+      });
+
+      // Handle connection close
+      const originalClose = this.close.bind(this);
+      this.close = () => {
+        const event: TelemetryEvent<NetworkEventPayload> = {
+          eventType: "network",
+          eventName: "sse_connection_closed",
+          payload: {
+            url: urlString,
+            method: "GET",
+            duration: performance.now() - startTime,
+            startTime,
+            endTime: performance.now(),
+            isSupabaseQuery: urlString.includes("supabase"),
+            isStreaming: true,
+            isKeepAlive: false,
+            connectionId,
+            sseState: "closed",
+            sseMessageCount: connectionState.messageCount,
+          },
+          timestamp: new Date().toISOString(),
+        };
+
+        try {
+          handleTelemetryEvent(event);
+        } catch (err) {
+          logger?.error("Error handling SSE close event", { error: err });
+        }
+
+        activeConnections.delete(this);
+        originalClose();
+      };
+    }
+  }
+
+  // Replace the global EventSource
+  Object.defineProperty(window, "EventSource", {
+    value: InterceptedEventSource,
+    writable: true,
+    configurable: true,
+  });
+
+  // Return cleanup function
+  return () => {
+    Object.defineProperty(window, "EventSource", {
+      value: originalEventSource,
+      writable: true,
+      configurable: true,
+    });
+    activeConnections.clear();
+  };
+}
+
+/**
+ * Enhanced streaming detection for fetch responses that might be SSE
+ */
+export function interceptStreamingResponse(
+  response: Response,
+  url: string,
+  startTime: number,
+  handleTelemetryEvent: (event: TelemetryEvent<NetworkEventPayload>) => void,
+  logger?: Logger
+): void {
+  const normalizedUrl = normalizeUrl(url);
+
+  if (!response.body || response.bodyUsed) {
+    logger?.warn(
+      "Cannot intercept streaming response: body is null or already used"
+    );
+    return;
+  }
+
+  const contentType = response.headers.get("content-type") || "";
+
+  // Only intercept text/event-stream responses
+  if (!contentType.includes("text/event-stream")) {
+    logger?.debug("Skipping non-SSE response for streaming interception", {
+      contentType,
+    });
+    return;
+  }
+
+  try {
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let messageCount = 0;
+    let buffer = "";
+    const connectionId = `fetch_sse_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+    // Capture SSE connection start
+    const connectionEvent: TelemetryEvent<NetworkEventPayload> = {
+      eventType: "network",
+      eventName: "sse_fetch_stream_started",
+      payload: {
+        url: normalizedUrl,
+        method: "GET",
+        responseStatus: response.status,
+        responseStatusText: response.statusText,
+        duration: performance.now() - startTime,
+        startTime,
+        endTime: performance.now(),
+        isSupabaseQuery: normalizedUrl.includes("supabase"),
+        isStreaming: true,
+        isKeepAlive: true,
+        connectionId,
+        sseState: "connected",
+      },
+      timestamp: new Date().toISOString(),
+    };
+
+    try {
+      handleTelemetryEvent(connectionEvent);
+    } catch (err) {
+      logger?.error("Error handling SSE connection start event", {
+        error: err,
+      });
+    }
+
+    // Read the stream
+    const readStream = async (): Promise<void> => {
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+
+          if (done) {
+            // Stream ended - process any remaining buffer
+            if (buffer.trim()) {
+              processSSEBuffer(
+                buffer,
+                messageCount,
+                normalizedUrl,
+                startTime,
+                connectionId,
+                handleTelemetryEvent,
+                logger
+              );
+            }
+
+            // Send stream end event
+            const endEvent: TelemetryEvent<NetworkEventPayload> = {
+              eventType: "network",
+              eventName: "sse_fetch_stream_ended",
+              payload: {
+                url: normalizedUrl,
+                method: "GET",
+                duration: performance.now() - startTime,
+                startTime,
+                endTime: performance.now(),
+                isSupabaseQuery: normalizedUrl.includes("supabase"),
+                isStreaming: true,
+                isKeepAlive: false,
+                connectionId,
+                sseState: "closed",
+                sseMessageCount: messageCount,
+              },
+              timestamp: new Date().toISOString(),
+            };
+
+            try {
+              handleTelemetryEvent(endEvent);
+            } catch (err) {
+              logger?.error("Error handling SSE stream end event", {
+                error: err,
+              });
+            }
+            return;
+          }
+
+          // Process the chunk
+          const chunk = decoder.decode(value, { stream: true });
+          buffer += chunk;
+
+          // Process complete SSE messages in the buffer
+          const lines = buffer.split("\n");
+          buffer = lines.pop() || ""; // Keep the last incomplete line in buffer
+
+          let currentMessage = "";
+          for (const line of lines) {
+            if (line.trim() === "") {
+              // Empty line indicates end of message
+              if (currentMessage.trim()) {
+                const processedCount = processSSEMessage(
+                  currentMessage,
+                  messageCount,
+                  normalizedUrl,
+                  startTime,
+                  connectionId,
+                  response,
+                  handleTelemetryEvent,
+                  logger
+                );
+                if (processedCount > messageCount) {
+                  messageCount = processedCount;
+                }
+                currentMessage = "";
+              }
+            } else {
+              currentMessage += line + "\n";
+            }
+          }
+
+          // If we have a partial message, add it back to current message
+          if (buffer.trim()) {
+            currentMessage += buffer;
+            buffer = "";
+          }
+        }
+      } catch (error) {
+        const errorEvent: TelemetryEvent<NetworkEventPayload> = {
+          eventType: "network",
+          eventName: "sse_fetch_stream_error",
+          payload: {
+            url: normalizedUrl,
+            method: "GET",
+            error: error instanceof Error ? error.message : String(error),
+            duration: performance.now() - startTime,
+            startTime,
+            endTime: performance.now(),
+            isSupabaseQuery: normalizedUrl.includes("supabase"),
+            isStreaming: true,
+            isKeepAlive: false,
+            connectionId,
+            sseState: "error",
+            sseMessageCount: messageCount,
+          },
+          timestamp: new Date().toISOString(),
+        };
+
+        try {
+          handleTelemetryEvent(errorEvent);
+        } catch (err) {
+          logger?.error("Error handling SSE stream error event", {
+            error: err,
+          });
+        }
+      } finally {
+        // Clean up reader
+        try {
+          reader.releaseLock();
+        } catch (err) {
+          logger?.debug("Error releasing reader lock", { error: err });
+        }
+      }
+    };
+
+    // Start reading the stream (don't await to avoid blocking)
+    readStream().catch(error => {
+      logger?.error("Error reading SSE stream", { error });
+    });
+  } catch (error) {
+    logger?.error("Error setting up SSE stream interception", { error });
+  }
+}
+
+/**
+ * Process a complete SSE message
+ */
+function processSSEMessage(
+  message: string,
+  currentCount: number,
+  url: string,
+  startTime: number,
+  connectionId: string,
+  response: Response,
+  handleTelemetryEvent: (event: TelemetryEvent<NetworkEventPayload>) => void,
+  logger?: Logger
+): number {
+  const normalizedUrl = normalizeUrl(url);
+  const lines = message.trim().split("\n");
+  let data = "";
+  let eventType = "message";
+  let id = "";
+
+  // Parse SSE message format
+  for (const line of lines) {
+    if (line.startsWith("data: ")) {
+      data += line.substring(6) + "\n";
+    } else if (line.startsWith("event: ")) {
+      eventType = line.substring(7);
+    } else if (line.startsWith("id: ")) {
+      id = line.substring(4);
+    }
+  }
+
+  // Remove trailing newline from data
+  data = data.replace(/\n$/, "");
+
+  if (data) {
+    const messageCount = currentCount + 1;
+
+    let parsedData: unknown = data;
+    try {
+      parsedData = JSON.parse(data);
+    } catch {
+      // Keep as string if not JSON
+    }
+
+    const messageEvent: TelemetryEvent<NetworkEventPayload> = {
+      eventType: "network",
+      eventName: "sse_fetch_message_received",
+      payload: {
+        url: normalizedUrl,
+        method: "GET",
+        responseStatus: response.status,
+        responseStatusText: response.statusText,
+        responseBody: parsedData,
+        duration: performance.now() - startTime,
+        startTime,
+        endTime: performance.now(),
+        isSupabaseQuery: normalizedUrl.includes("supabase"),
+        isStreaming: true,
+        isKeepAlive: true,
+        connectionId,
+        sseState: "message",
+        ...(id && { sseMessageId: id }),
+        sseMessageType: eventType,
+        sseMessageCount: messageCount,
+      },
+      timestamp: new Date().toISOString(),
+    };
+
+    try {
+      handleTelemetryEvent(messageEvent);
+    } catch (err) {
+      logger?.error("Error handling SSE message event", { error: err });
+    }
+
+    return messageCount;
+  }
+
+  return currentCount;
+}
+
+/**
+ * Process remaining buffer content
+ */
+function processSSEBuffer(
+  buffer: string,
+  currentCount: number,
+  url: string,
+  startTime: number,
+  connectionId: string,
+  handleTelemetryEvent: (event: TelemetryEvent<NetworkEventPayload>) => void,
+  logger?: Logger
+): void {
+  const normalizedUrl = normalizeUrl(url);
+  // Process any remaining complete messages in buffer
+  const messages = buffer.split("\n\n");
+  for (const message of messages) {
+    if (message.trim()) {
+      processSSEMessage(
+        message,
+        currentCount,
+        normalizedUrl,
+        startTime,
+        connectionId,
+        // Create a mock response for buffer processing
+        new Response(null, { status: 200, statusText: "OK" }),
+        handleTelemetryEvent,
+        logger
+      );
+    }
+  }
+}
