@@ -452,6 +452,210 @@ export function interceptStreamingResponse(
 }
 
 /**
+ * Generic streaming response interceptor for non-SSE streaming responses
+ */
+export function interceptGenericStreamingResponse(
+  response: Response,
+  url: string,
+  startTime: number,
+  handleTelemetryEvent: (event: TelemetryEvent<NetworkEventPayload>) => void,
+  logger?: Logger
+): void {
+  const normalizedUrl = normalizeUrl(url);
+
+  if (!response.body || response.bodyUsed) {
+    logger?.warn(
+      "Cannot intercept generic streaming response: body is null or already used"
+    );
+    return;
+  }
+
+  const contentType = response.headers.get("content-type") || "";
+
+  try {
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let chunkCount = 0;
+    const connectionId = `fetch_stream_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const maxChunks = 100; // Limit chunks to prevent overwhelming telemetry
+    const maxChunkSize = 5000; // 5KB per chunk
+
+    // Capture streaming connection start
+    const connectionEvent: TelemetryEvent<NetworkEventPayload> = {
+      eventType: "network",
+      eventName: "fetch_stream_started",
+      payload: {
+        url: normalizedUrl,
+        method: "GET",
+        responseStatus: response.status,
+        responseStatusText: response.statusText,
+        duration: performance.now() - startTime,
+        startTime,
+        endTime: performance.now(),
+        isSupabaseQuery: normalizedUrl.includes("supabase"),
+        isStreaming: true,
+        isKeepAlive: true,
+        connectionId,
+        streamContentType: contentType,
+      },
+      timestamp: new Date().toISOString(),
+    };
+
+    try {
+      handleTelemetryEvent(connectionEvent);
+    } catch (err) {
+      logger?.error("Error handling streaming connection start event", {
+        error: err,
+      });
+    }
+
+    // Read the stream
+    const readStream = async (): Promise<void> => {
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+
+          if (done) {
+            // Send stream end event
+            const endEvent: TelemetryEvent<NetworkEventPayload> = {
+              eventType: "network",
+              eventName: "fetch_stream_ended",
+              payload: {
+                url: normalizedUrl,
+                method: "GET",
+                duration: performance.now() - startTime,
+                startTime,
+                endTime: performance.now(),
+                isSupabaseQuery: normalizedUrl.includes("supabase"),
+                isStreaming: true,
+                isKeepAlive: false,
+                connectionId,
+                streamChunkCount: chunkCount,
+              },
+              timestamp: new Date().toISOString(),
+            };
+
+            try {
+              handleTelemetryEvent(endEvent);
+            } catch (err) {
+              logger?.error("Error handling streaming end event", {
+                error: err,
+              });
+            }
+            return;
+          }
+
+          // Stop capturing after max chunks to prevent overwhelming telemetry
+          if (chunkCount >= maxChunks) {
+            logger?.debug("Reached max chunk limit for streaming response", {
+              url: normalizedUrl,
+              chunkCount,
+            });
+            continue;
+          }
+
+          chunkCount++;
+
+          // Process the chunk
+          const chunk = decoder.decode(value, { stream: true });
+
+          // Truncate large chunks
+          let chunkData: string = chunk;
+          if (chunk.length > maxChunkSize) {
+            chunkData = chunk.substring(0, maxChunkSize) + "... [truncated]";
+          }
+
+          // Try to parse as JSON if possible
+          let parsedChunk: unknown = chunkData;
+          try {
+            // Only try to parse if it looks like JSON
+            if (
+              chunkData.trim().startsWith("{") ||
+              chunkData.trim().startsWith("[")
+            ) {
+              parsedChunk = JSON.parse(chunkData);
+            }
+          } catch {
+            // Keep as string if not JSON
+          }
+
+          const chunkEvent: TelemetryEvent<NetworkEventPayload> = {
+            eventType: "network",
+            eventName: "fetch_stream_chunk_received",
+            payload: {
+              url: normalizedUrl,
+              method: "GET",
+              responseStatus: response.status,
+              responseStatusText: response.statusText,
+              responseBody: parsedChunk,
+              duration: performance.now() - startTime,
+              startTime,
+              endTime: performance.now(),
+              isSupabaseQuery: normalizedUrl.includes("supabase"),
+              isStreaming: true,
+              isKeepAlive: true,
+              connectionId,
+              streamChunkCount: chunkCount,
+              streamChunkSize: chunk.length,
+            },
+            timestamp: new Date().toISOString(),
+          };
+
+          try {
+            handleTelemetryEvent(chunkEvent);
+          } catch (err) {
+            logger?.error("Error handling streaming chunk event", {
+              error: err,
+            });
+          }
+        }
+      } catch (error) {
+        const errorEvent: TelemetryEvent<NetworkEventPayload> = {
+          eventType: "network",
+          eventName: "fetch_stream_error",
+          payload: {
+            url: normalizedUrl,
+            method: "GET",
+            error: error instanceof Error ? error.message : String(error),
+            duration: performance.now() - startTime,
+            startTime,
+            endTime: performance.now(),
+            isSupabaseQuery: normalizedUrl.includes("supabase"),
+            isStreaming: true,
+            isKeepAlive: false,
+            connectionId,
+            streamChunkCount: chunkCount,
+          },
+          timestamp: new Date().toISOString(),
+        };
+
+        try {
+          handleTelemetryEvent(errorEvent);
+        } catch (err) {
+          logger?.error("Error handling streaming error event", {
+            error: err,
+          });
+        }
+      } finally {
+        // Clean up reader
+        try {
+          reader.releaseLock();
+        } catch (err) {
+          logger?.debug("Error releasing reader lock", { error: err });
+        }
+      }
+    };
+
+    // Start reading the stream (don't await to avoid blocking)
+    readStream().catch(error => {
+      logger?.error("Error reading generic stream", { error });
+    });
+  } catch (error) {
+    logger?.error("Error setting up generic stream interception", { error });
+  }
+}
+
+/**
  * Process a complete SSE message
  */
 function processSSEMessage(

@@ -5,7 +5,10 @@ import { isStreamingResponse } from "../streamingDetection";
 import { extractQueryParams } from "../extractQueryParams";
 import { extractResponseHeaders } from "../extractResponseHeaders";
 import { extractResponseBody } from "../extractResponseBody";
-import { interceptStreamingResponse } from "../sseInterceptor";
+import {
+  interceptStreamingResponse,
+  interceptGenericStreamingResponse,
+} from "../sseInterceptor";
 import { normalizeUrl } from "../normalizeUrl";
 
 export interface FetchInterceptorOptions {
@@ -123,19 +126,33 @@ export function patchFetch({
         }
 
         // Set up streaming interception on the dedicated stream
-        if (isSSE && streamingResponse !== originalResponse) {
+        if ((isStreaming || isSSE) && streamingResponse !== originalResponse) {
           try {
-            interceptStreamingResponse(
-              streamingResponse,
-              url,
-              startTime,
-              handleTelemetryEvent,
-              logger
-            );
+            if (isSSE) {
+              // Use SSE-specific interception for text/event-stream
+              interceptStreamingResponse(
+                streamingResponse,
+                url,
+                startTime,
+                handleTelemetryEvent,
+                logger
+              );
+            } else {
+              // For other streaming responses, set up generic streaming interception
+              interceptGenericStreamingResponse(
+                streamingResponse,
+                url,
+                startTime,
+                handleTelemetryEvent,
+                logger
+              );
+            }
           } catch (error) {
-            logger?.error("Failed to set up SSE stream interception", {
+            logger?.error("Failed to set up streaming interception", {
               error: error instanceof Error ? error.message : String(error),
               url,
+              isSSE,
+              isStreaming,
             });
           }
         }

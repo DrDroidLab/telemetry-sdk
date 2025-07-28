@@ -9,6 +9,10 @@ export {
 } from "./extractResponseHeaders";
 export { normalizeUrl } from "./normalizeUrl";
 export { isStreamingResponse } from "./streamingDetection";
-export { patchEventSource, interceptStreamingResponse } from "./sseInterceptor";
+export {
+  patchEventSource,
+  interceptStreamingResponse,
+  interceptGenericStreamingResponse,
+} from "./sseInterceptor";
 export { patchFetch } from "./unifiedInterceptors/fetch";
 export { patchXHR } from "./unifiedInterceptors/xhr";

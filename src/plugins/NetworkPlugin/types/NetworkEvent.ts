@@ -20,6 +20,10 @@ export type NetworkEventPayload = {
   sseMessageId?: string;
   sseMessageType?: string;
   sseMessageCount?: number;
+  // Generic streaming fields
+  streamContentType?: string;
+  streamChunkCount?: number;
+  streamChunkSize?: number;
 };
 
 export type NetworkEvent = {
@@ -45,7 +49,12 @@ export type NetworkEvent = {
     | "sse_fetch_stream_started"
     | "sse_fetch_message_received"
     | "sse_fetch_stream_ended"
-    | "sse_fetch_stream_error";
+    | "sse_fetch_stream_error"
+    // Generic streaming event names
+    | "fetch_stream_started"
+    | "fetch_stream_chunk_received"
+    | "fetch_stream_ended"
+    | "fetch_stream_error";
   payload: NetworkEventPayload;
   timestamp: string;
 };
