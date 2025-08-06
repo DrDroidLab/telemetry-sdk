@@ -18,4 +18,7 @@ export const initialTelemetryConfig: TelemetryConfig = {
   maxRetries: 1,
   retryDelay: 1000,
   samplingRate: 1.0,
+  logging: {
+    enableConsole: false,
+  },
 };
