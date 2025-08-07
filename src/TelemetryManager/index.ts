@@ -19,6 +19,10 @@ import {
   earlyEventQueue,
   setupModuleLevelEarlyInterceptors,
 } from "../utils/earlyInitialization";
+import {
+  clearUserProperties,
+  clearAllUserProperties,
+} from "../exporters/HyperlookExporter/utils";
 
 // Set up interceptors immediately when module is loaded
 setupModuleLevelEarlyInterceptors();
@@ -222,6 +226,7 @@ export class TelemetryManager {
     this.eventProcessor.clear();
     this.failedEvents = [];
     this.exportManager.setExporters([]);
+    clearAllUserProperties();
 
     this.state = TelemetryState.SHUTDOWN;
     this.logger.info("TelemetryManager shutdown complete");
@@ -239,6 +244,7 @@ export class TelemetryManager {
     this.eventProcessor.clear();
     this.failedEvents = [];
     this.exportManager.setExporters([]);
+    clearAllUserProperties();
 
     this.logger.info("TelemetryManager destroyed");
   }
@@ -309,7 +315,17 @@ export class TelemetryManager {
         throw new Error("User ID is required and must be a string");
       }
 
+      // Validate traits if provided
+      if (
+        traits !== undefined &&
+        (typeof traits !== "object" || traits === null)
+      ) {
+        throw new Error("Traits must be an object or undefined");
+      }
+
+      // Update userId in both TelemetryManager and EventProcessor
       this.userId = userId;
+      this.eventProcessor.setUserId(userId);
 
       const identifyEvent: TelemetryEvent = {
         eventType: "identify",
@@ -341,6 +357,15 @@ export class TelemetryManager {
 
   getUserId(): string | undefined {
     return this.userId;
+  }
+
+  clearUserIdentification(): void {
+    if (this.userId) {
+      clearUserProperties(this.userId);
+    }
+    delete this.userId;
+    this.eventProcessor.setUserId("");
+    this.logger.info("User identification cleared");
   }
 
   getCustomEventsPlugin() {

@@ -186,6 +186,38 @@ export class EventProcessor {
     this.state = state;
   }
 
+  setUserId(userId: string): void {
+    this.userId = userId;
+    this.logger.debug("EventProcessor userId updated", { userId });
+
+    // Update userId for all events in buffer and queue
+    this.updateEventsWithUserId(userId);
+  }
+
+  private updateEventsWithUserId(userId: string): void {
+    // Update events in buffer
+    for (const event of this.buffer) {
+      if (event && !event.userId) {
+        event.userId = userId;
+      }
+    }
+
+    // Update events in queue
+    for (const event of this.eventQueue) {
+      if (event && !event.userId) {
+        event.userId = userId;
+      }
+    }
+
+    this.logger.debug("Updated existing events with userId", {
+      userId,
+      bufferEventsUpdated: this.buffer.filter(e => e && e.userId === userId)
+        .length,
+      queueEventsUpdated: this.eventQueue.filter(e => e && e.userId === userId)
+        .length,
+    });
+  }
+
   clear(): void {
     this.buffer = [];
     this.eventQueue = [];

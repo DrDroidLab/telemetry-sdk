@@ -4,11 +4,13 @@ import { getLogger } from "../../../logger";
  * Limits the size of properties object to ensure it doesn't exceed 8KB
  * @param properties - The properties object to limit
  * @param maxSizeBytes - Maximum size in bytes (default: 8192 for 8KB)
+ * @param addDefaultMessage - Whether to add a default message field (default: true for console events)
  * @returns A new properties object that fits within the size limit
  */
 export function limitPropertiesSize(
   properties: Record<string, unknown>,
-  maxSizeBytes: number = 8192
+  maxSizeBytes: number = 8192,
+  addDefaultMessage: boolean = true
 ): Record<string, unknown> {
   const logger = getLogger();
 
@@ -37,10 +39,11 @@ export function limitPropertiesSize(
     return properties;
   }
 
-  // Ensure we always have at least a message field for console events
+  // Ensure we always have at least a message field for console events (but not for user properties)
   if (
-    filteredProperties.message === undefined ||
-    filteredProperties.message === null
+    addDefaultMessage &&
+    (filteredProperties.message === undefined ||
+      filteredProperties.message === null)
   ) {
     filteredProperties.message = "[No message]";
   }
