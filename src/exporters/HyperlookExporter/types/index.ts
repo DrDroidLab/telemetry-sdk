@@ -12,4 +12,8 @@ export type HyperlookEvent = {
   referrer?: string;
   user_agent?: string;
   timestamp?: string;
+  sdk_metadata?: {
+    version: string;
+    [key: string]: unknown;
+  };
 };

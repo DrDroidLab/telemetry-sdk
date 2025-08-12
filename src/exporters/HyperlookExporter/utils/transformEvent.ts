@@ -74,6 +74,11 @@ export function transformEvent(event: TelemetryEvent): HyperlookEvent {
     timestamp: event.timestamp,
   };
 
+  // Add SDK metadata if available
+  if (event.sdkMetadata) {
+    transformed.sdk_metadata = event.sdkMetadata;
+  }
+
   // Only add optional properties if they have values
   if (event.sessionId) {
     transformed.session_id = event.sessionId;
