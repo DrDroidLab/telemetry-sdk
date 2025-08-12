@@ -9,6 +9,7 @@
     "dist"
   ],
   "scripts": {
+    "prebuild": "tsx scripts/update-version.ts",
     "build": "tsup",
     "dev": "tsup --watch",
     "test": "vitest",

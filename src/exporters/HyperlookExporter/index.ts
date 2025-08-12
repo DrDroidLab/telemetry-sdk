@@ -2,6 +2,7 @@ import type { TelemetryExporter, TelemetryEvent } from "../../types";
 import { getLogger } from "../../logger";
 import { HYPERLOOK_URL } from "../../constants";
 import { transformEvent } from "./utils";
+import { getCurrentVersion } from "../../utils/versionUtils";
 
 export class HyperlookExporter implements TelemetryExporter {
   private logger = getLogger();
@@ -48,6 +49,7 @@ export class HyperlookExporter implements TelemetryExporter {
             "Content-Type": "application/json",
             Accept: "application/json",
             "X-API-Key": this.apiKey,
+            "X-SDK-Version": getCurrentVersion(),
           },
           body: JSON.stringify(payload),
           signal: controller.signal,

@@ -6,7 +6,7 @@ import prettier from "eslint-config-prettier";
 /** @type {import("eslint").Linter.FlatConfig[]} */
 export default [
   {
-    ignores: ["dist/**", "examples/**"],
+    ignores: ["dist/**", "examples/**", "scripts/**"],
   },
   {
     languageOptions: {

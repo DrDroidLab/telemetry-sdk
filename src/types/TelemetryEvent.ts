@@ -5,4 +5,8 @@ export type TelemetryEvent<T = Record<string, unknown>> = {
   timestamp: string;
   sessionId?: string;
   userId?: string;
+  sdkMetadata?: {
+    version: string;
+    [key: string]: unknown;
+  };
 };

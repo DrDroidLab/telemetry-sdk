@@ -1,6 +1,7 @@
 import type { TelemetryEvent, Logger } from "../types";
 import { TelemetryState } from "./types";
 import { sanitizeString, sanitizePayload } from "./utils";
+import { getCurrentVersion } from "../utils/versionUtils";
 
 export class EventProcessor {
   private eventQueue: TelemetryEvent[] = [];
@@ -80,6 +81,9 @@ export class EventProcessor {
         ...validatedEvent,
         sessionId: this.sessionId,
         ...(this.userId && { userId: this.userId }),
+        sdkMetadata: {
+          version: getCurrentVersion(),
+        },
       };
 
       // Check queue size limit to prevent memory leaks

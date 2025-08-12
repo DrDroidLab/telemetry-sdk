@@ -19,6 +19,7 @@ import { CustomEventsPlugin } from "./plugins/CustomEventsPlugin";
 import { PageViewPlugin } from "./plugins/PageViewPlugin";
 import { ErrorPlugin } from "./plugins/ErrorPlugin";
 import { initialTelemetryConfig } from "./utils/initialTelemetryConfig";
+import { getCurrentVersion } from "./utils/versionUtils";
 
 export {
   TelemetryManager,
@@ -34,6 +35,7 @@ export {
   getLogger,
   setLogger,
   createLogger,
+  getCurrentVersion,
 };
 
 export type {

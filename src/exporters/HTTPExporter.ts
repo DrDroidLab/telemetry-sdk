@@ -1,5 +1,6 @@
 import type { TelemetryExporter, TelemetryEvent } from "../types";
 import { getLogger } from "../logger";
+import { getCurrentVersion } from "../utils/versionUtils";
 
 export class HTTPExporter implements TelemetryExporter {
   private logger = getLogger();
@@ -29,7 +30,10 @@ export class HTTPExporter implements TelemetryExporter {
       try {
         const response = await fetch(endpoint, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            "X-SDK-Version": getCurrentVersion(),
+          },
           body: JSON.stringify({ events }),
           signal: controller.signal,
         });
