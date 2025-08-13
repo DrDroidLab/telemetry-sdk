@@ -8,8 +8,11 @@ export enum TelemetryState {
 
 export interface CircuitBreakerState {
   consecutiveFailures: number;
+  totalAttempts: number;
   maxConsecutiveFailures: number;
   circuitBreakerTimeout: number;
+  failureThreshold: number;
   lastFailureTime: number;
   isCircuitOpen: boolean;
+  isHalfOpen: boolean;
 }

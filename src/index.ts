@@ -89,7 +89,9 @@ export function initTelemetry(
             document.visibilityState === "hidden" &&
             !telemetry.isShutdown()
           ) {
-            void telemetry.flush();
+            telemetry.flush().catch(error => {
+              console.warn("Visibility change flush failed:", error);
+            });
           }
         }, 1000);
       }
