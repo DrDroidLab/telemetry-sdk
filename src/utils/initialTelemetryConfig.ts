@@ -38,6 +38,6 @@ export const initialTelemetryConfig: TelemetryConfig = {
   // Sampling and logging
   samplingRate: 1.0, // Full sampling by default
   logging: {
-    enableConsole: true, // Disable console logging by default
+    enableConsole: false, // Disable console logging by default
   },
 };
