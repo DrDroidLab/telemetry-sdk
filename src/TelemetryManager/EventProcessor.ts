@@ -65,6 +65,7 @@ export class EventProcessor {
     ) {
       throw new Error("Invalid timestamp format. Expected ISO 8601 format");
     }
+
     const sanitizedEvent: TelemetryEvent = {
       ...event,
       eventType: sanitizeString(event.eventType, "eventType"),

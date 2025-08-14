@@ -1,5 +1,10 @@
 import type { TelemetryEvent, TelemetryExporter, Logger } from "../types";
 import { CircuitBreaker } from "./CircuitBreaker";
+import {
+  generateEventId,
+  hasNonRetryableError,
+  extractErrorMessages,
+} from "./utils";
 
 export class ExportManager {
   private exporters: TelemetryExporter[] = [];
@@ -76,11 +81,17 @@ export class ExportManager {
         exporters: this.exporters.length,
       });
 
+      // Assign event IDs to events that don't have them (preserve existing IDs for retries)
+      const eventsWithIds: TelemetryEvent[] = events.map(event => ({
+        ...event,
+        event_id: event.event_id || generateEventId(),
+      }));
+
       while (retries < this.maxRetries) {
         const results = await Promise.all(
           this.exporters.map(async exporter => {
             try {
-              await exporter.export(events, this.endpoint);
+              await exporter.export(eventsWithIds, this.endpoint);
               return { success: true };
             } catch (error) {
               return { success: false, error };
@@ -103,6 +114,19 @@ export class ExportManager {
           );
           return { success: true, shouldReturnToBuffer: false };
         } else {
+          // Check if any errors are non-retryable
+          if (hasNonRetryableError(lastErrors)) {
+            this.logger.error(
+              "Non-retryable error encountered, stopping retries",
+              {
+                eventCount: events.length,
+                retries,
+                errors: extractErrorMessages(lastErrors),
+              }
+            );
+            return { success: false, shouldReturnToBuffer: true };
+          }
+
           retries++;
           this.circuitBreaker.recordFailure();
 
@@ -120,7 +144,7 @@ export class ExportManager {
             duration: Date.now() - startTime,
           });
 
-          if (retries <= this.maxRetries) {
+          if (retries < this.maxRetries) {
             const delay = this.calculateRetryDelay(retries);
             this.logger.debug("Waiting before retry", {
               delay,

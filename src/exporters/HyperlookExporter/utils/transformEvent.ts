@@ -1,6 +1,5 @@
 import type { TelemetryEvent } from "../../../types";
 import type { HyperlookEvent } from "../types";
-import { generateEventId } from "./generateEventId";
 import { limitPropertiesSize } from "./limitPropertiesSize";
 import { getUserProperties, setUserProperties } from "./index";
 import { getLogger } from "../../../logger";
@@ -80,8 +79,13 @@ export function transformEvent(event: TelemetryEvent): HyperlookEvent {
       }
     }
 
+    // Use the event_id that was already assigned by ExportManager
+    if (!event.event_id) {
+      throw new Error("Event ID is required but not provided");
+    }
+
     const transformed: HyperlookEvent = {
-      event_id: generateEventId(),
+      event_id: event.event_id,
       event_type: event.eventType,
       event_name: event.eventName,
       properties: properties,

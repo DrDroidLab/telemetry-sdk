@@ -3,6 +3,7 @@ export type TelemetryEvent<T = Record<string, unknown>> = {
   eventName: string;
   payload: T;
   timestamp: string;
+  event_id?: string; // Optional event ID - will be assigned by ExportManager
   sessionId?: string;
   userId?: string;
   sdkMetadata?: {

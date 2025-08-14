@@ -1,11 +1,7 @@
 import type { TelemetryExporter, TelemetryEvent } from "../types";
 import { getLogger } from "../logger";
 import { getCurrentVersion } from "../utils/versionUtils";
-
-interface EnhancedError extends Error {
-  isRetryable?: boolean;
-  errorType?: string;
-}
+import type { EnhancedError } from "../TelemetryManager/types";
 
 export class HTTPExporter implements TelemetryExporter {
   private logger = getLogger();

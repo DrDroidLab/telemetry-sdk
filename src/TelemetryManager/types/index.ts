@@ -16,3 +16,8 @@ export interface CircuitBreakerState {
   isCircuitOpen: boolean;
   isHalfOpen: boolean;
 }
+
+export interface EnhancedError extends Error {
+  isRetryable?: boolean;
+  errorType?: string;
+}

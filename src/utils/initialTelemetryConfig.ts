@@ -13,7 +13,7 @@ export const initialTelemetryConfig: TelemetryConfig = {
   enablePerformance: true,
   enableErrors: true,
   enableCustomEvents: false, // Disabled by default to avoid noise
-  captureStreamingMessages: false, // Disabled by default to avoid overwhelming telemetry
+  captureStreamingMessages: true,
 
   // Reliability settings - optimized for production use
   batchSize: 25, // Smaller batches for better reliability
@@ -38,6 +38,6 @@ export const initialTelemetryConfig: TelemetryConfig = {
   // Sampling and logging
   samplingRate: 1.0, // Full sampling by default
   logging: {
-    enableConsole: false, // Disable console logging by default
+    enableConsole: true, // Disable console logging by default
   },
 };
