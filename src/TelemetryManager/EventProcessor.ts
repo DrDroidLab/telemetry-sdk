@@ -24,6 +24,17 @@ export class EventProcessor {
     sessionId: string,
     userId?: string
   ) {
+    // Validate parameters
+    if (samplingRate < 0 || samplingRate > 1) {
+      throw new Error("samplingRate must be between 0 and 1");
+    }
+    if (batchSize < 1) {
+      throw new Error("batchSize must be at least 1");
+    }
+    if (!sessionId || typeof sessionId !== "string") {
+      throw new Error("sessionId is required and must be a string");
+    }
+
     this.logger = logger;
     this.state = state;
     this.samplingRate = samplingRate;
@@ -54,6 +65,7 @@ export class EventProcessor {
     ) {
       throw new Error("Invalid timestamp format. Expected ISO 8601 format");
     }
+
     const sanitizedEvent: TelemetryEvent = {
       ...event,
       eventType: sanitizeString(event.eventType, "eventType"),
@@ -160,7 +172,8 @@ export class EventProcessor {
   }
 
   returnBatchToBuffer(batch: TelemetryEvent[]): void {
-    this.buffer.unshift(...batch);
+    // Add events to the end of the buffer to maintain FIFO order
+    this.buffer.push(...batch);
   }
 
   isBufferFull(): boolean {

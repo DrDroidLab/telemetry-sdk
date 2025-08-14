@@ -14,6 +14,7 @@ import { TelemetryState } from "./types";
 import { PluginManager } from "./PluginManager";
 import { EventProcessor } from "./EventProcessor";
 import { ExportManager } from "./ExportManager";
+
 import { HYPERLOOK_URL } from "../constants";
 import {
   earlyEventQueue,
@@ -89,19 +90,43 @@ export class TelemetryManager {
             "Hyperlook API key is required when Hyperlook exporter is enabled"
           );
         }
-        enabledExporters.push(new HyperlookExporter(config.hyperlookApiKey));
+        enabledExporters.push(
+          new HyperlookExporter(
+            config.hyperlookApiKey,
+            config.connectionTimeout,
+            config.requestTimeout,
+            config.hyperlookMaxBatchSize,
+            config.hyperlookMaxPayloadSize
+          )
+        );
       } else if (exporterType === ExporterType.HTTP) {
-        enabledExporters.push(new HTTPExporter());
+        enabledExporters.push(
+          new HTTPExporter(config.connectionTimeout, config.requestTimeout)
+        );
       }
     }
 
     this.exportManager = new ExportManager(
       this.logger,
       enabledExporters,
-      config.maxRetries ?? 3,
+      config.maxRetries ?? 5, // Increased default
       config.retryDelay ?? 1000,
+      config.maxRetryDelay ?? 30000,
       config.endpoint
     );
+
+    // Update circuit breaker configuration if provided
+    if (
+      config.circuitBreakerMaxFailures ||
+      config.circuitBreakerTimeout ||
+      config.circuitBreakerFailureThreshold
+    ) {
+      this.exportManager.updateCircuitBreaker(
+        config.circuitBreakerMaxFailures,
+        config.circuitBreakerTimeout,
+        config.circuitBreakerFailureThreshold
+      );
+    }
 
     // Initialize plugins
     const pluginsToRegister = this.pluginManager.initializePlugins(config);
@@ -124,7 +149,17 @@ export class TelemetryManager {
       endpoint: HYPERLOOK_URL,
       batchSize: config.batchSize ?? 50,
       flushInterval: this.flushInterval,
-      maxRetries: config.maxRetries ?? 3,
+      maxRetries: config.maxRetries ?? 5,
+      retryDelay: config.retryDelay ?? 1000,
+      maxRetryDelay: config.maxRetryDelay ?? 30000,
+      connectionTimeout: config.connectionTimeout ?? 10000,
+      requestTimeout: config.requestTimeout ?? 45000,
+      circuitBreakerMaxFailures: config.circuitBreakerMaxFailures ?? 10,
+      circuitBreakerTimeout: config.circuitBreakerTimeout ?? 60000,
+      circuitBreakerFailureThreshold:
+        config.circuitBreakerFailureThreshold ?? 0.5,
+      hyperlookMaxBatchSize: config.hyperlookMaxBatchSize ?? 100,
+      hyperlookMaxPayloadSize: config.hyperlookMaxPayloadSize ?? 1024 * 1024,
       samplingRate: config.samplingRate ?? 1.0,
       enablePageViews: config.enablePageViews,
       enableClicks: config.enableClicks,
@@ -195,6 +230,12 @@ export class TelemetryManager {
 
   async flush(): Promise<void> {
     const batch = this.eventProcessor.getBatchForExport();
+
+    // Don't flush if no events
+    if (batch.length === 0) {
+      return;
+    }
+
     const result = await this.exportManager.flush(batch);
 
     if (!result.success && result.shouldReturnToBuffer) {
@@ -374,6 +415,10 @@ export class TelemetryManager {
 
   getEndpoint(): string {
     return HYPERLOOK_URL;
+  }
+
+  getCircuitBreakerState() {
+    return this.exportManager.getCircuitBreakerState();
   }
 
   private processEarlyEventQueue(): void {
