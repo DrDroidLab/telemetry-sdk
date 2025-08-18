@@ -35,6 +35,111 @@ export class ExportManager {
     this.circuitBreaker = new CircuitBreaker(logger);
   }
 
+  /**
+   * Flush events using sendBeacon for critical shutdown scenarios
+   */
+  private flushWithBeacon(events: TelemetryEvent[]): {
+    success: boolean;
+    shouldReturnToBuffer: boolean;
+  } {
+    if (
+      typeof window === "undefined" ||
+      typeof window.navigator === "undefined" ||
+      !window.navigator.sendBeacon
+    ) {
+      this.logger.warn("sendBeacon not supported, falling back to fetch");
+      return { success: false, shouldReturnToBuffer: true };
+    }
+
+    try {
+      // Try to send to each exporter endpoint
+      let anySuccess = false;
+
+      for (const exporter of this.exporters) {
+        try {
+          // Resolve endpoint via exporter hook (no hardcoding)
+          const endpoint = exporter.getEndpoint
+            ? exporter.getEndpoint(this.endpoint)
+            : this.endpoint;
+          if (!endpoint) {
+            continue;
+          }
+
+          // Create payload via exporter hook (no hardcoding)
+          const payloadUnknown = exporter.transformPayload
+            ? exporter.transformPayload(events, true)
+            : { events };
+          const payload = payloadUnknown as { events?: unknown[] };
+
+          // Handle size limits (64KB for sendBeacon)
+          const payloadString = JSON.stringify(payloadUnknown);
+          if (payloadString.length > 64 * 1024) {
+            // Truncate events to fit within beacon limit
+            const truncatedEvents = events.slice(
+              0,
+              Math.floor(events.length / 2)
+            );
+            const truncatedUnknown = exporter.transformPayload
+              ? exporter.transformPayload(truncatedEvents, true)
+              : { events: truncatedEvents };
+            const truncatedPayload = truncatedUnknown as { events?: unknown[] };
+            payload.events = truncatedPayload.events || [];
+          }
+
+          // Log the beacon payload for debugging
+          this.logger.debug("Sending beacon payload", {
+            endpoint,
+            payloadSize: JSON.stringify(payloadUnknown).length,
+            payloadPreview:
+              JSON.stringify(payloadUnknown).substring(0, 200) + "...",
+          });
+
+          const success = window.navigator.sendBeacon(
+            endpoint,
+            new Blob([JSON.stringify(payloadUnknown)], {
+              type: "application/json",
+            })
+          );
+
+          if (success) {
+            anySuccess = true;
+            this.logger.debug("Events sent successfully via sendBeacon", {
+              endpoint,
+              eventCount: events.length,
+              payloadSize: JSON.stringify(payloadUnknown).length,
+            });
+          } else {
+            this.logger.warn("sendBeacon returned false", {
+              endpoint,
+              eventCount: events.length,
+            });
+          }
+        } catch (error) {
+          this.logger.debug("sendBeacon failed for exporter", {
+            exporterType: exporter.constructor.name,
+            error: error instanceof Error ? error.message : String(error),
+          });
+        }
+      }
+
+      if (anySuccess) {
+        this.circuitBreaker.recordSuccess();
+        return { success: true, shouldReturnToBuffer: false };
+      } else {
+        this.logger.warn(
+          "sendBeacon failed for all exporters, returning to buffer"
+        );
+        return { success: false, shouldReturnToBuffer: true };
+      }
+    } catch (error) {
+      this.logger.error("sendBeacon flush failed", {
+        error: error instanceof Error ? error.message : String(error),
+        eventCount: events.length,
+      });
+      return { success: false, shouldReturnToBuffer: true };
+    }
+  }
+
   private calculateRetryDelay(attempt: number): number {
     // Exponential backoff with jitter
     const exponentialDelay = Math.min(
@@ -48,7 +153,8 @@ export class ExportManager {
   }
 
   async flush(
-    events: TelemetryEvent[]
+    events: TelemetryEvent[],
+    useBeacon: boolean = false
   ): Promise<{ success: boolean; shouldReturnToBuffer: boolean }> {
     if (!events.length) {
       this.logger.debug("No events to flush");
@@ -79,6 +185,7 @@ export class ExportManager {
         eventCount: events.length,
         events: events.map(e => ({ type: e.eventType, name: e.eventName })),
         exporters: this.exporters.length,
+        method: useBeacon ? "sendBeacon" : "fetch",
       });
 
       // Assign event IDs to events that don't have them (preserve existing IDs for retries)
@@ -86,6 +193,11 @@ export class ExportManager {
         ...event,
         event_id: event.event_id || generateEventId(),
       }));
+
+      // Use sendBeacon for critical shutdown scenarios
+      if (useBeacon) {
+        return this.flushWithBeacon(eventsWithIds);
+      }
 
       while (retries < this.maxRetries) {
         const results = await Promise.all(

@@ -64,6 +64,34 @@ export class HyperlookExporter implements TelemetryExporter {
     });
   }
 
+  getEndpoint(): string | undefined {
+    return HYPERLOOK_URL;
+  }
+
+  transformPayload(events: TelemetryEvent[], forBeacon?: boolean): unknown {
+    // Transform events to Hyperlook format
+    const hyperlookEvents = events
+      .map(event => {
+        try {
+          return transformEvent(event);
+        } catch {
+          return null;
+        }
+      })
+      .filter((event): event is NonNullable<typeof event> => event !== null);
+
+    const payload: { events: HyperlookPayload["events"]; api_key?: string } = {
+      events: hyperlookEvents,
+    };
+
+    // For beacon requests, include API key in body since headers aren't supported
+    if (forBeacon) {
+      payload.api_key = this.apiKey;
+    }
+
+    return payload;
+  }
+
   private validateAndSplitBatch(events: TelemetryEvent[]): TelemetryEvent[][] {
     if (events.length <= this.maxBatchSize) {
       return [events];
@@ -150,35 +178,9 @@ export class HyperlookExporter implements TelemetryExporter {
       let totalExported = 0;
 
       for (const batch of batches) {
-        // Transform events to Hyperlook format
-        const hyperlookEvents = batch
-          .map(event => {
-            try {
-              return transformEvent(event);
-            } catch (transformError) {
-              this.logger.warn("Failed to transform event, skipping", {
-                eventType: event.eventType,
-                eventName: event.eventName,
-                error:
-                  transformError instanceof Error
-                    ? transformError.message
-                    : String(transformError),
-              });
-              return null;
-            }
-          })
-          .filter(
-            (event): event is NonNullable<typeof event> => event !== null
-          ); // Remove null events with proper typing
-
-        if (hyperlookEvents.length === 0) {
-          this.logger.warn("No valid events in batch after transformation");
-          continue;
-        }
-
-        const payload: HyperlookPayload = {
-          events: hyperlookEvents,
-        };
+        // Transform events using the shared transformPayload method
+        const payloadUnknown = this.transformPayload(batch);
+        const payload = payloadUnknown as HyperlookPayload;
 
         // Validate payload before sending
         const validation = this.validatePayload(payload);
@@ -186,8 +188,13 @@ export class HyperlookExporter implements TelemetryExporter {
           throw new Error(`Payload validation failed: ${validation.error}`);
         }
 
+        if (!payload.events || payload.events.length === 0) {
+          this.logger.warn("No valid events in batch after transformation");
+          continue;
+        }
+
         this.logger.debug("Sending batch to Hyperlook", {
-          batchSize: hyperlookEvents.length,
+          batchSize: payload.events.length,
           payloadSize: JSON.stringify(payload).length,
         });
 
@@ -257,11 +264,11 @@ export class HyperlookExporter implements TelemetryExporter {
           this.logger.debug("Hyperlook batch export successful", {
             status: response.status,
             statusText: response.statusText,
-            batchSize: hyperlookEvents.length,
+            batchSize: payload.events.length,
             responseSize: response.headers.get("content-length"),
           });
 
-          totalExported += hyperlookEvents.length;
+          totalExported += payload.events.length;
         } catch (error) {
           clearTimeout(connectionTimeoutId);
           clearTimeout(requestTimeoutId);
@@ -304,7 +311,7 @@ export class HyperlookExporter implements TelemetryExporter {
             endpoint: HYPERLOOK_URL,
             errorType,
             isRetryable,
-            batchSize: hyperlookEvents.length,
+            batchSize: payload.events.length,
             error: error instanceof Error ? error.message : String(error),
             errorStack: error instanceof Error ? error.stack : undefined,
           });
@@ -324,7 +331,7 @@ export class HyperlookExporter implements TelemetryExporter {
             this.logger.warn(
               "Retryable error in batch, continuing with remaining batches",
               {
-                batchSize: hyperlookEvents.length,
+                batchSize: payload.events.length,
                 errorType,
                 totalExported,
               }

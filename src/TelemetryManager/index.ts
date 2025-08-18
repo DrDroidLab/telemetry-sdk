@@ -228,7 +228,7 @@ export class TelemetryManager {
     }
   }
 
-  async flush(): Promise<void> {
+  async flush(useBeacon: boolean = false): Promise<void> {
     const batch = this.eventProcessor.getBatchForExport();
 
     // Don't flush if no events
@@ -236,7 +236,12 @@ export class TelemetryManager {
       return;
     }
 
-    const result = await this.exportManager.flush(batch);
+    // Use sendBeacon if explicitly requested or if we're in shutdown state
+    const shouldUseBeacon =
+      useBeacon ||
+      this.state === TelemetryState.SHUTTING_DOWN ||
+      this.state === TelemetryState.SHUTDOWN;
+    const result = await this.exportManager.flush(batch, shouldUseBeacon);
 
     if (!result.success && result.shouldReturnToBuffer) {
       this.eventProcessor.returnBatchToBuffer(batch);

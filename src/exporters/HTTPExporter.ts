@@ -33,6 +33,14 @@ export class HTTPExporter implements TelemetryExporter {
     });
   }
 
+  getEndpoint(endpoint?: string): string | undefined {
+    return endpoint;
+  }
+
+  transformPayload(events: TelemetryEvent[], _forBeacon?: boolean): unknown {
+    return { events };
+  }
+
   async export(events: TelemetryEvent[], endpoint?: string): Promise<void> {
     if (!endpoint || endpoint.trim() === "") {
       this.logger.warn("HTTP export skipped - no endpoint configured", {
