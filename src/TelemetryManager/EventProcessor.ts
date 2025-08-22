@@ -93,7 +93,8 @@ export class EventProcessor {
         ...validatedEvent,
         sessionId: this.sessionId,
         ...(this.userId && { userId: this.userId }),
-        sdkMetadata: {
+        // Preserve existing sdkMetadata (for early events) or add new one
+        sdkMetadata: validatedEvent.sdkMetadata || {
           version: getCurrentVersion(),
         },
       };
