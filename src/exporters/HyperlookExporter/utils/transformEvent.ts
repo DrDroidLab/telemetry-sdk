@@ -42,8 +42,6 @@ export function transformEvent(event: TelemetryEvent): HyperlookEvent {
       limitedProperties = limitPropertiesSize(payload);
     }
 
-    logger.info("limitedProperties", limitedProperties);
-
     // Properties should never be null since limitPropertiesSize ensures at least a message field
     const properties = { ...limitedProperties };
 
