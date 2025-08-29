@@ -159,7 +159,8 @@ export class TelemetryManager {
       circuitBreakerFailureThreshold:
         config.circuitBreakerFailureThreshold ?? 0.5,
       hyperlookMaxBatchSize: config.hyperlookMaxBatchSize ?? 100,
-      hyperlookMaxPayloadSize: config.hyperlookMaxPayloadSize ?? 1024 * 1024,
+      hyperlookMaxPayloadSize:
+        config.hyperlookMaxPayloadSize ?? 5 * 1024 * 1024, // 5MB max payload size
       samplingRate: config.samplingRate ?? 1.0,
       enablePageViews: config.enablePageViews,
       enableClicks: config.enableClicks,

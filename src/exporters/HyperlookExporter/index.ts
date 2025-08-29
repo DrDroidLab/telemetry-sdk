@@ -26,7 +26,7 @@ export class HyperlookExporter implements TelemetryExporter {
     connectionTimeout: number = 10000, // 10 seconds for connection
     requestTimeout: number = 45000, // 45 seconds for request (increased from 30)
     maxBatchSize: number = 100, // Maximum events per batch
-    maxPayloadSize: number = 1024 * 1024 // 1MB max payload size
+    maxPayloadSize: number = 5 * 1024 * 1024 // 5MB max payload size
   ) {
     // Validate parameters
     if (!apiKey || typeof apiKey !== "string") {
@@ -109,6 +109,12 @@ export class HyperlookExporter implements TelemetryExporter {
       maxBatchSize: this.maxBatchSize,
     });
 
+    this.logger.info("Events split into multiple batches", {
+      originalCount: events.length,
+      batchCount: batches.length,
+      maxBatchSize: this.maxBatchSize,
+    });
+
     return batches;
   }
 
@@ -185,13 +191,23 @@ export class HyperlookExporter implements TelemetryExporter {
         // Validate payload before sending
         const validation = this.validatePayload(payload);
         if (!validation.isValid) {
+          this.logger.info("Payload validation failed", {
+            error: validation.error,
+          });
           throw new Error(`Payload validation failed: ${validation.error}`);
         }
 
         if (!payload.events || payload.events.length === 0) {
+          this.logger.info("No valid events in batch after transformation", {
+            batchSize: payload.events.length,
+          });
           this.logger.warn("No valid events in batch after transformation");
           continue;
         }
+
+        this.logger.info("Payload validated", {
+          batchSize: payload.events.length,
+        });
 
         this.logger.debug("Sending batch to Hyperlook", {
           batchSize: payload.events.length,

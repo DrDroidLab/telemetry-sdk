@@ -73,7 +73,7 @@ export const initialTelemetryConfig: TelemetryConfig = {
 
   // Hyperlook-specific settings
   hyperlookMaxBatchSize: 25, // Match batch size for consistency
-  hyperlookMaxPayloadSize: 512 * 1024, // 512KB max payload
+  hyperlookMaxPayloadSize: 5 * 1024 * 1024, // 5MB max payload size
 
   // Sampling and logging
   samplingRate: 1.0, // Full sampling by default
