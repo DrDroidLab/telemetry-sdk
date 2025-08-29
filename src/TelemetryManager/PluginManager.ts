@@ -8,6 +8,7 @@ import {
   CustomEventsPlugin,
   PageViewPlugin,
   ErrorPlugin,
+  SessionReplayPlugin,
 } from "../plugins";
 
 export class PluginManager {
@@ -61,6 +62,11 @@ export class PluginManager {
           plugin: CustomEventsPlugin,
           name: "CustomEventsPlugin",
           isCustomEvents: true,
+        },
+        {
+          enabled: config.enableSessionReplay,
+          plugin: SessionReplayPlugin,
+          name: "SessionReplayPlugin",
         },
       ];
 

@@ -1,5 +1,6 @@
 import type { LoggerConfig } from "./Logger";
 import type { ExporterType } from "./ExporterTypes";
+import type { SessionReplayConfig } from "./SessionReplay";
 
 export type TelemetryConfig = {
   endpoint?: string; // Optional since we use hardcoded Hyperlook URL
@@ -11,6 +12,7 @@ export type TelemetryConfig = {
   enableNetwork?: boolean;
   enablePerformance?: boolean;
   enableErrors?: boolean; // Enable error tracking
+  enableSessionReplay?: boolean; // Enable session replay recording
   batchSize?: number;
   flushInterval?: number;
   maxRetries?: number;
@@ -22,6 +24,9 @@ export type TelemetryConfig = {
   userId?: string;
   enableCustomEvents?: boolean;
   captureStreamingMessages?: boolean; // Enable capturing individual streaming messages/chunks
+
+  // Session Replay settings
+  sessionReplay?: SessionReplayConfig;
 
   // Reliability settings
   connectionTimeout?: number; // Connection timeout in milliseconds

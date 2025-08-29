@@ -53,6 +53,7 @@
     "lint-staged": "^16.1.2",
     "prettier": "^3.6.2",
     "tsup": "^8.5.0",
+    "tsx": "^4.20.5",
     "typescript": "^5.8.3",
     "vitest": "^3.2.4"
   },
@@ -64,5 +65,8 @@
     "*.{json,md}": [
       "prettier --write"
     ]
+  },
+  "dependencies": {
+    "rrweb": "^2.0.0-alpha.18"
   }
 }

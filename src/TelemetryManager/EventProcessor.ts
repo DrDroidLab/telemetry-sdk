@@ -125,6 +125,7 @@ export class EventProcessor {
         eventType: event.eventType,
         eventName: event.eventName,
         error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
       });
       return false;
     }
