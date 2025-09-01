@@ -6,17 +6,17 @@ export const initialTelemetryConfig: TelemetryConfig = {
   exporters: [ExporterType.HYPERLOOK],
 
   // Feature flags - enable useful features by default
-  enablePageViews: false,
-  enableClicks: false,
-  enableLogs: false,
-  enableNetwork: false,
-  enablePerformance: false,
-  enableErrors: false,
+  enablePageViews: true,
+  enableClicks: true,
+  enableLogs: true,
+  enableNetwork: true,
+  enablePerformance: true,
+  enableErrors: true,
   enableCustomEvents: false, // Disabled by default to avoid noise
-  enableSessionReplay: true, // Disabled by default - requires explicit opt-in
+  enableSessionReplay: false, // Disabled by default - requires explicit opt-in
   captureStreamingMessages: true,
 
-  // Session Replay settings - simplified for PoC
+  // Session Replay settings - only used when enableSessionReplay is true
   sessionReplay: {
     // rrweb configuration options
     recordCanvas: false,
@@ -78,6 +78,6 @@ export const initialTelemetryConfig: TelemetryConfig = {
   // Sampling and logging
   samplingRate: 1.0, // Full sampling by default
   logging: {
-    enableConsole: true, // Enable console logging to see session replay logs
+    enableConsole: false, // Disabled by default for production
   },
 };
