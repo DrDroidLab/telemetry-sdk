@@ -21,7 +21,26 @@ export function transformEvent(event: TelemetryEvent): HyperlookEvent {
 
     // Ensure payload is properly handled - limitPropertiesSize will always return at least a message
     const payload = event.payload || {};
-    const limitedProperties = limitPropertiesSize(payload);
+
+    // Special handling for session replay events - preserve full data without limiting
+    let limitedProperties: Record<string, unknown>;
+    if (event.eventType === "session_replay") {
+      // For session replay events, use the payload directly without any size limiting
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+      limitedProperties = JSON.parse(JSON.stringify(payload));
+
+      // Add a descriptive message for session replay events
+      const rrwebType =
+        typeof payload.rrweb_type === "string" ? payload.rrweb_type : "event";
+      const batchCount =
+        typeof payload.events === "object" && Array.isArray(payload.events)
+          ? payload.events.length
+          : 0;
+      limitedProperties.message = `Session replay ${rrwebType} - ${batchCount} events`;
+    } else {
+      // For other events, use normal size limiting
+      limitedProperties = limitPropertiesSize(payload);
+    }
 
     // Properties should never be null since limitPropertiesSize ensures at least a message field
     const properties = { ...limitedProperties };

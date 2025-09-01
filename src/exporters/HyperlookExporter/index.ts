@@ -26,7 +26,7 @@ export class HyperlookExporter implements TelemetryExporter {
     connectionTimeout: number = 10000, // 10 seconds for connection
     requestTimeout: number = 45000, // 45 seconds for request (increased from 30)
     maxBatchSize: number = 100, // Maximum events per batch
-    maxPayloadSize: number = 1024 * 1024 // 1MB max payload size
+    maxPayloadSize: number = 5 * 1024 * 1024 // 5MB max payload size
   ) {
     // Validate parameters
     if (!apiKey || typeof apiKey !== "string") {
@@ -224,13 +224,9 @@ export class HyperlookExporter implements TelemetryExporter {
               Accept: "application/json",
               "X-API-Key": this.apiKey,
               "X-SDK-Version": getCurrentVersion(),
-              "User-Agent": `TelemetrySDK/${getCurrentVersion()}`,
-              Connection: "keep-alive",
             },
             body: JSON.stringify(payload),
             signal: requestController.signal,
-            // Add keep-alive for connection reuse
-            keepalive: true,
           });
 
           clearTimeout(connectionTimeoutId);
@@ -345,6 +341,15 @@ export class HyperlookExporter implements TelemetryExporter {
         totalExported,
         failedCount: events.length - totalExported,
       });
+      // If nothing was exported at all, surface a retryable failure so the manager can retry/return to buffer
+      if (totalExported === 0) {
+        const noExportError: Error & Partial<EnhancedError> = new Error(
+          "Hyperlook export completed with zero events exported"
+        );
+        noExportError.isRetryable = true;
+        noExportError.errorType = "no_events_exported";
+        throw noExportError;
+      }
     } catch (error) {
       this.logger.error("Hyperlook export failed", {
         endpoint: HYPERLOOK_URL,
