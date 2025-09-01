@@ -224,13 +224,9 @@ export class HyperlookExporter implements TelemetryExporter {
               Accept: "application/json",
               "X-API-Key": this.apiKey,
               "X-SDK-Version": getCurrentVersion(),
-              "User-Agent": `TelemetrySDK/${getCurrentVersion()}`,
-              Connection: "keep-alive",
             },
             body: JSON.stringify(payload),
             signal: requestController.signal,
-            // Add keep-alive for connection reuse
-            keepalive: true,
           });
 
           clearTimeout(connectionTimeoutId);
@@ -345,6 +341,15 @@ export class HyperlookExporter implements TelemetryExporter {
         totalExported,
         failedCount: events.length - totalExported,
       });
+      // If nothing was exported at all, surface a retryable failure so the manager can retry/return to buffer
+      if (totalExported === 0) {
+        const noExportError: Error & Partial<EnhancedError> = new Error(
+          "Hyperlook export completed with zero events exported"
+        );
+        noExportError.isRetryable = true;
+        noExportError.errorType = "no_events_exported";
+        throw noExportError;
+      }
     } catch (error) {
       this.logger.error("Hyperlook export failed", {
         endpoint: HYPERLOOK_URL,
