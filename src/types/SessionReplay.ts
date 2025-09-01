@@ -2,7 +2,10 @@ import type { eventWithTime } from "rrweb";
 
 export type SessionReplayEvent = {
   eventType: "session_replay";
-  eventName: "session_replay";
+  eventName:
+    | "session_replay_start"
+    | "session_replay_batch"
+    | "session_replay_end";
   payload: SessionReplayPayload;
   timestamp: string;
   sessionId?: string;

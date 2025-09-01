@@ -271,7 +271,7 @@ export class SessionReplayPlugin extends BasePlugin {
     try {
       const event: SessionReplayEvent = {
         eventType: "session_replay",
-        eventName: "session_replay",
+        eventName: "session_replay_batch",
         payload: {
           rrweb_type: String(rrwebEvent.type) as
             | "session_start"
@@ -381,7 +381,7 @@ export class SessionReplayPlugin extends BasePlugin {
 
     const sessionStartEvent: SessionReplayEvent = {
       eventType: "session_replay",
-      eventName: "session_replay",
+      eventName: "session_replay_start",
       payload: {
         rrweb_type: "session_start" as const,
         sessionId: this.sessionId,
@@ -418,7 +418,7 @@ export class SessionReplayPlugin extends BasePlugin {
 
     const sessionEndEvent: SessionReplayEvent = {
       eventType: "session_replay",
-      eventName: "session_replay",
+      eventName: "session_replay_end",
       payload: {
         rrweb_type: "session_end" as const,
         sessionId: this.sessionId,
@@ -597,11 +597,202 @@ export class SessionReplayPlugin extends BasePlugin {
       timestamp: new Date().toISOString(),
     });
 
-    this.stopRecording();
+    // Always send session end event via beacon, even if no events were captured
+    // This ensures UI consistency by reliably marking session as complete
+    if (this.state.isRecording || this.events.length > 0) {
+      this.sendSessionEndEventViaBeacon();
+    } else {
+      // Send minimal session end event even if recording never started
+      this.sendMinimalSessionEndEventViaBeacon();
+    }
 
     this.logger.info("SessionReplayPlugin teardown completed", {
       sessionId: this.sessionId,
       timestamp: new Date().toISOString(),
     });
+  }
+
+  private sendMinimalSessionEndEvent(): void {
+    this.logger.info("SessionReplayPlugin sending minimal session end event", {
+      sessionId: this.sessionId,
+      timestamp: new Date().toISOString(),
+    });
+
+    const minimalSessionEndEvent: SessionReplayEvent = {
+      eventType: "session_replay",
+      eventName: "session_replay_end",
+      payload: {
+        rrweb_type: "session_end" as const,
+        sessionId: this.sessionId,
+        events: [],
+        metadata: {
+          startTime: this.state.startTime || Date.now(),
+          endTime: Date.now(),
+          duration: Date.now() - (this.state.startTime || Date.now()),
+          eventCount: 0,
+          url: typeof window !== "undefined" ? window.location.href : "",
+          userAgent:
+            typeof window !== "undefined" &&
+            typeof window.navigator !== "undefined"
+              ? window.navigator.userAgent
+              : "",
+          viewport: {
+            width: typeof window !== "undefined" ? window.innerWidth : 0,
+            height: typeof window !== "undefined" ? window.innerHeight : 0,
+          },
+          devicePixelRatio:
+            typeof window !== "undefined" ? window.devicePixelRatio : 1,
+        },
+        config: this.config,
+      },
+      timestamp: new Date().toISOString(),
+      userId: this.manager.getUserId() || "",
+    };
+
+    this.logger.info("SessionReplayPlugin created minimal session end event", {
+      sessionId: this.sessionId,
+      eventType: minimalSessionEndEvent.eventType,
+      eventName: minimalSessionEndEvent.eventName,
+      rrwebType: minimalSessionEndEvent.payload.rrweb_type,
+      metadata: minimalSessionEndEvent.payload.metadata,
+    });
+
+    this.safeCapture(minimalSessionEndEvent);
+
+    this.logger.info("SessionReplayPlugin minimal session end event sent", {
+      sessionId: this.sessionId,
+      eventCount: 0,
+      timestamp: minimalSessionEndEvent.timestamp,
+    });
+  }
+
+  private sendSessionEndEventViaBeacon(): void {
+    this.logger.info(
+      "SessionReplayPlugin sending session end event via beacon",
+      {
+        sessionId: this.sessionId,
+        totalEvents: this.events.length,
+        timestamp: new Date().toISOString(),
+      }
+    );
+
+    const sessionEndEvent: SessionReplayEvent = {
+      eventType: "session_replay",
+      eventName: "session_replay_end",
+      payload: {
+        rrweb_type: "session_end" as const,
+        sessionId: this.sessionId,
+        events: this.events.slice(),
+        metadata: this.getMetadata(),
+        config: this.config,
+      },
+      timestamp: new Date().toISOString(),
+      userId: this.manager.getUserId() || "",
+    };
+
+    this.logger.info(
+      "SessionReplayPlugin created session end event for beacon",
+      {
+        sessionId: this.sessionId,
+        eventType: sessionEndEvent.eventType,
+        eventName: sessionEndEvent.eventName,
+        rrwebType: sessionEndEvent.payload.rrweb_type,
+        metadata: sessionEndEvent.payload.metadata,
+      }
+    );
+
+    // Use manager's capture with beacon flag to ensure sendBeacon is used
+    if (this.manager) {
+      this.manager.capture(sessionEndEvent);
+      // Force immediate beacon flush
+      this.manager.flush(true).catch(error => {
+        this.logger.error("Failed to flush session end event via beacon", {
+          sessionId: this.sessionId,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      });
+    }
+
+    this.logger.info("SessionReplayPlugin session end event sent via beacon", {
+      sessionId: this.sessionId,
+      eventCount: this.events.length,
+      timestamp: sessionEndEvent.timestamp,
+    });
+  }
+
+  private sendMinimalSessionEndEventViaBeacon(): void {
+    this.logger.info(
+      "SessionReplayPlugin sending minimal session end event via beacon",
+      {
+        sessionId: this.sessionId,
+        timestamp: new Date().toISOString(),
+      }
+    );
+
+    const minimalSessionEndEvent: SessionReplayEvent = {
+      eventType: "session_replay",
+      eventName: "session_replay_end",
+      payload: {
+        rrweb_type: "session_end" as const,
+        sessionId: this.sessionId,
+        events: [],
+        metadata: {
+          startTime: this.state.startTime || Date.now(),
+          endTime: Date.now(),
+          duration: Date.now() - (this.state.startTime || Date.now()),
+          eventCount: 0,
+          url: typeof window !== "undefined" ? window.location.href : "",
+          userAgent:
+            typeof window !== "undefined" &&
+            typeof window.navigator !== "undefined"
+              ? window.navigator.userAgent
+              : "",
+          viewport: {
+            width: typeof window !== "undefined" ? window.innerWidth : 0,
+            height: typeof window !== "undefined" ? window.innerHeight : 0,
+          },
+          devicePixelRatio:
+            typeof window !== "undefined" ? window.devicePixelRatio : 1,
+        },
+        config: this.config,
+      },
+      timestamp: new Date().toISOString(),
+      userId: this.manager.getUserId() || "",
+    };
+
+    this.logger.info(
+      "SessionReplayPlugin created minimal session end event for beacon",
+      {
+        sessionId: this.sessionId,
+        eventType: minimalSessionEndEvent.eventType,
+        eventName: minimalSessionEndEvent.eventName,
+        rrwebType: minimalSessionEndEvent.payload.rrweb_type,
+        metadata: minimalSessionEndEvent.payload.metadata,
+      }
+    );
+
+    // Use manager's capture with beacon flag to ensure sendBeacon is used
+    if (this.manager) {
+      this.manager.capture(minimalSessionEndEvent);
+      // Force immediate beacon flush
+      this.manager.flush(true).catch(error => {
+        this.logger.error(
+          "Failed to flush minimal session end event via beacon",
+          {
+            sessionId: this.sessionId,
+            error: error instanceof Error ? error.message : String(error),
+          }
+        );
+      });
+    }
+
+    this.logger.info(
+      "SessionReplayPlugin minimal session end event sent via beacon",
+      {
+        sessionId: this.sessionId,
+        eventCount: 0,
+        timestamp: minimalSessionEndEvent.timestamp,
+      }
+    );
   }
 }
