@@ -1,4 +1,4 @@
-import { record } from "rrweb";
+import { record, type eventWithTime } from "rrweb";
 import { BasePlugin } from "../BasePlugin";
 import type {
   SessionReplayEvent,
@@ -9,16 +9,9 @@ import type {
 } from "../../types/SessionReplay";
 import { generateSessionId } from "../../TelemetryManager/utils/generateSessionId";
 
-// Define a basic event type to avoid rrweb type issues
-type BasicEvent = {
-  type: number;
-  data: unknown;
-  timestamp: number;
-};
-
 export class SessionReplayPlugin extends BasePlugin {
   private stopFn: (() => void) | null = null;
-  private events: BasicEvent[] = [];
+  private events: eventWithTime[] = [];
   private state: SessionReplayState = {
     isRecording: false,
     isPaused: false,
@@ -30,11 +23,6 @@ export class SessionReplayPlugin extends BasePlugin {
   private sessionId: string;
   private maxEvents: number;
   private maxDuration: number;
-  private throttleTimer: NodeJS.Timeout | null = null;
-  private lastThrottledEvent: BasicEvent | null = null;
-  private batchEvents: BasicEvent[] = [];
-  private batchSize: number = 50; // Batch events for export
-  private batchTimer: NodeJS.Timeout | null = null;
 
   constructor() {
     super();
@@ -81,13 +69,11 @@ export class SessionReplayPlugin extends BasePlugin {
       // Set limits from config
       this.maxEvents = this.config.maxEvents || 10000;
       this.maxDuration = this.config.maxDuration || 30 * 60 * 1000;
-      this.batchSize = this.config.batchSize || 50;
 
       this.logger.info("SessionReplayPlugin limits configured", {
         sessionId: this.sessionId,
         maxEvents: this.maxEvents,
         maxDuration: this.maxDuration,
-        batchSize: this.batchSize,
       });
 
       // Start recording
@@ -99,7 +85,6 @@ export class SessionReplayPlugin extends BasePlugin {
         limits: {
           maxEvents: this.maxEvents,
           maxDuration: this.maxDuration,
-          batchSize: this.batchSize,
         },
       });
     } catch (error) {
@@ -133,13 +118,11 @@ export class SessionReplayPlugin extends BasePlugin {
       this.state.isRecording = true;
       this.state.startTime = Date.now();
       this.events = [];
-      this.batchEvents = [];
 
       this.logger.info("SessionReplayPlugin state initialized", {
         sessionId: this.sessionId,
         startTime: this.state.startTime,
         eventsArrayLength: this.events.length,
-        batchEventsLength: this.batchEvents.length,
       });
 
       // Configure rrweb options
@@ -220,312 +203,105 @@ export class SessionReplayPlugin extends BasePlugin {
   }
 
   private handleRrwebEvent(event: unknown): void {
-    if (!this.state.isRecording || this.state.isPaused) {
-      this.logger.debug(
-        "SessionReplayPlugin ignoring rrweb event - not recording or paused",
-        {
-          sessionId: this.sessionId,
-          isRecording: this.state.isRecording,
-          isPaused: this.state.isPaused,
-          eventType: (event as Record<string, unknown>)?.type,
-        }
-      );
-      return;
-    }
-
     try {
-      // Type guard for event
-      if (
-        !event ||
-        typeof event !== "object" ||
-        !("type" in event) ||
-        !("timestamp" in event)
-      ) {
-        this.logger.warn("SessionReplayPlugin received invalid rrweb event", {
-          sessionId: this.sessionId,
-          event,
-          hasEvent: !!event,
-          eventType: typeof event,
-          hasType: event && typeof event === "object" && "type" in event,
-          hasTimestamp:
-            event && typeof event === "object" && "timestamp" in event,
-        });
+      // Type guard to ensure it's a valid rrweb event
+      if (!this.isValidRrwebEvent(event)) {
+        this.logger.debug("Invalid rrweb event received", { event });
         return;
       }
 
-      const eventObj = event as Record<string, unknown>;
-      const basicEvent: BasicEvent = {
-        type: Number(eventObj.type),
-        data: eventObj.data || {},
-        timestamp: Number(eventObj.timestamp),
-      };
-
-      this.logger.debug("SessionReplayPlugin processing rrweb event", {
-        sessionId: this.sessionId,
-        eventType: basicEvent.type,
-        eventTimestamp: basicEvent.timestamp,
-        eventDataKeys: Object.keys(
-          (basicEvent.data as Record<string, unknown>) || {}
-        ),
-        currentEventCount: this.events.length,
-        currentBatchCount: this.batchEvents.length,
-      });
-
-      // Check limits
-      if (this.events.length >= this.maxEvents) {
-        this.logger.warn(
-          "SessionReplayPlugin event limit reached, stopping recording",
+      // Check session limits
+      if (this.state.eventCount >= this.maxEvents) {
+        this.logger.info(
+          "Session replay max events reached, stopping recording",
           {
-            sessionId: this.sessionId,
             maxEvents: this.maxEvents,
-            currentEvents: this.events.length,
-            eventType: basicEvent.type,
+            currentCount: this.state.eventCount,
           }
         );
         this.stopRecording();
         return;
       }
 
-      const now = Date.now();
-      if (now - this.state.startTime > this.maxDuration) {
-        this.logger.warn(
-          "SessionReplayPlugin duration limit reached, stopping recording",
+      // Check session duration
+      const currentTime = Date.now();
+      if (currentTime - this.state.startTime > this.maxDuration) {
+        this.logger.info(
+          "Session replay max duration reached, stopping recording",
           {
-            sessionId: this.sessionId,
             maxDuration: this.maxDuration,
-            currentDuration: now - this.state.startTime,
-            eventType: basicEvent.type,
+            currentDuration: currentTime - this.state.startTime,
           }
         );
         this.stopRecording();
         return;
       }
 
-      // Apply custom masking if configured
-      const maskedEvent = this.applyMasking(basicEvent);
+      // Apply masking to sensitive data
+      const maskedEvent = this.applyMasking(event);
 
-      // Add to events array
-      this.events.push(maskedEvent);
-
-      // Add to batch for export
-      this.batchEvents.push(maskedEvent);
-
-      this.logger.debug("SessionReplayPlugin event added to arrays", {
-        sessionId: this.sessionId,
-        eventType: maskedEvent.type,
-        totalEvents: this.events.length,
-        batchEvents: this.batchEvents.length,
-        batchSize: this.batchSize,
-      });
-
-      // Throttle events if configured
-      if (this.config.throttleEvents && this.config.throttleDelay) {
-        this.logger.debug("SessionReplayPlugin throttling event", {
-          sessionId: this.sessionId,
-          throttleDelay: this.config.throttleDelay,
-          eventType: maskedEvent.type,
-        });
-        this.throttleEvent(maskedEvent);
-      } else {
-        this.processEventBatch();
-      }
-
-      this.state.lastEventTime = now;
+      // Increment event count
       this.state.eventCount++;
 
-      // Log every 100 events for monitoring
-      if (this.state.eventCount % 100 === 0) {
-        this.logger.info("SessionReplayPlugin event count milestone", {
-          sessionId: this.sessionId,
-          eventCount: this.state.eventCount,
-          totalEvents: this.events.length,
-          batchEvents: this.batchEvents.length,
-          duration: now - this.state.startTime,
-        });
-      }
+      // Add to all events array for session end
+      this.events.push(maskedEvent);
+
+      // Send individual event immediately
+      this.sendIndividualEvent(maskedEvent);
+
+      this.logger.debug("Processed rrweb event", {
+        eventType: maskedEvent.type,
+        eventCount: this.state.eventCount,
+      });
     } catch (error) {
-      this.logger.error("SessionReplayPlugin failed to handle rrweb event", {
-        sessionId: this.sessionId,
-        error: error instanceof Error ? error.message : String(error),
-        stack: error instanceof Error ? error.stack : undefined,
-        eventType: (event as Record<string, unknown>)?.type || "unknown",
-        timestamp: new Date().toISOString(),
-      });
+      this.logger.error("Error processing rrweb event", { error, event });
     }
   }
 
-  private throttleEvent(event: BasicEvent): void {
-    this.logger.debug("SessionReplayPlugin throttling event", {
-      sessionId: this.sessionId,
-      eventType: event.type,
-      throttleDelay: this.config.throttleDelay,
-    });
-
-    if (this.throttleTimer) {
-      clearTimeout(this.throttleTimer);
-      this.logger.debug("SessionReplayPlugin cleared existing throttle timer", {
-        sessionId: this.sessionId,
-      });
-    }
-
-    this.lastThrottledEvent = event;
-
-    this.throttleTimer = setTimeout(() => {
-      this.logger.debug("SessionReplayPlugin throttle timer fired", {
-        sessionId: this.sessionId,
-        hasLastEvent: !!this.lastThrottledEvent,
-      });
-      if (this.lastThrottledEvent) {
-        this.processEventBatch();
-        this.lastThrottledEvent = null;
-      }
-    }, this.config.throttleDelay || 100);
+  private isValidRrwebEvent(event: unknown): event is eventWithTime {
+    return (
+      !!event &&
+      typeof event === "object" &&
+      "type" in event &&
+      "timestamp" in event
+    );
   }
 
-  private processEventBatch(): void {
-    if (this.batchEvents.length === 0) {
-      this.logger.debug("SessionReplayPlugin no events to process", {
-        sessionId: this.sessionId,
-      });
-      return;
-    }
-
-    this.logger.debug("SessionReplayPlugin processing event batch", {
-      sessionId: this.sessionId,
-      batchSize: this.batchEvents.length,
-      maxBatchSize: this.batchSize,
-      hasTimer: !!this.batchTimer,
-    });
-
-    // Process batch if it's full or if we have a timer
-    if (this.batchEvents.length >= this.batchSize) {
-      this.logger.info(
-        "SessionReplayPlugin batch full, exporting immediately",
-        {
-          sessionId: this.sessionId,
-          batchSize: this.batchEvents.length,
-          maxBatchSize: this.batchSize,
-        }
-      );
-      this.exportEventBatch();
-    } else if (!this.batchTimer) {
-      // Set a timer to export remaining events after a delay
-      this.logger.debug("SessionReplayPlugin setting batch timer", {
-        sessionId: this.sessionId,
-        batchSize: this.batchEvents.length,
-        delay: 1000,
-      });
-      this.batchTimer = setTimeout(() => {
-        this.logger.debug("SessionReplayPlugin batch timer fired", {
-          sessionId: this.sessionId,
-          batchSize: this.batchEvents.length,
-        });
-        this.exportEventBatch();
-      }, 1000); // Export after 1 second if batch isn't full
-    }
-  }
-
-  private exportEventBatch(): void {
-    if (this.batchEvents.length === 0) {
-      this.logger.debug("SessionReplayPlugin no events to export", {
-        sessionId: this.sessionId,
-      });
-      return;
-    }
-
-    this.logger.info("SessionReplayPlugin exporting event batch", {
-      sessionId: this.sessionId,
-      batchSize: this.batchEvents.length,
-      totalEvents: this.events.length,
-      timestamp: new Date().toISOString(),
-    });
-
+  private sendIndividualEvent(rrwebEvent: eventWithTime): void {
     try {
-      // Clear the batch timer
-      if (this.batchTimer) {
-        clearTimeout(this.batchTimer);
-        this.batchTimer = null;
-        this.logger.debug("SessionReplayPlugin cleared batch timer", {
-          sessionId: this.sessionId,
-        });
-      }
-
-      // Create batch event for export
-      const batchEvent: SessionReplayEvent = {
+      const event: SessionReplayEvent = {
         eventType: "session_replay",
         eventName: "session_replay",
         payload: {
+          rrweb_type: String(rrwebEvent.type) as
+            | "session_start"
+            | "events_batch"
+            | "session_end",
           sessionId: this.sessionId,
-          events: this.batchEvents.slice(),
+          events: [rrwebEvent],
           metadata: this.getMetadata(),
           config: this.config,
-          rrweb_type: "events_batch" as const,
         },
         timestamp: new Date().toISOString(),
-        sessionId: this.sessionId,
-        ...(this.manager.getUserId() && {
-          userId: this.manager.getUserId() ?? "",
-        }),
+        userId: this.manager.getUserId() || "",
       };
 
-      this.logger.info("SessionReplayPlugin created batch event", {
+      this.logger.info("Sending individual rrweb event", {
+        rrwebType: String(rrwebEvent.type),
         sessionId: this.sessionId,
-        eventType: batchEvent.eventType,
-        eventName: batchEvent.eventName,
-        rrwebType: batchEvent.payload.rrweb_type,
-        eventCount: batchEvent.payload.events.length,
-        metadata: batchEvent.payload.metadata,
+        eventCount: this.state.eventCount,
       });
 
-      // Send to telemetry manager for export
-      this.logger.info("SessionReplayPlugin about to call safeCapture", {
-        sessionId: this.sessionId,
-        eventType: batchEvent.eventType,
-        eventName: batchEvent.eventName,
-        hasSafeCapture: typeof this.safeCapture === "function",
-        isEnabled: this.isEnabled,
-        isInitialized: this.isInitialized,
-        isDestroyed: this.isDestroyed,
-        hasManager: !!this.manager,
-      });
-
-      this.safeCapture(batchEvent);
-
-      this.logger.info("SessionReplayPlugin safeCapture call completed", {
-        sessionId: this.sessionId,
-        eventType: batchEvent.eventType,
-        eventName: batchEvent.eventName,
-      });
-
-      this.logger.info(
-        "SessionReplayPlugin batch event sent to telemetry manager",
-        {
-          sessionId: this.sessionId,
-          eventCount: batchEvent.payload.events.length,
-          timestamp: batchEvent.timestamp,
-        }
-      );
-
-      // Clear the batch
-      this.batchEvents = [];
-
-      this.logger.debug("SessionReplayPlugin batch cleared", {
-        sessionId: this.sessionId,
-        remainingBatchEvents: this.batchEvents.length,
-        totalEvents: this.events.length,
-      });
+      this.safeCapture(event);
     } catch (error) {
-      this.logger.error("SessionReplayPlugin failed to export batch", {
-        sessionId: this.sessionId,
-        error: error instanceof Error ? error.message : String(error),
-        stack: error instanceof Error ? error.stack : undefined,
-        batchSize: this.batchEvents.length,
-        timestamp: new Date().toISOString(),
+      this.logger.error("Error sending individual rrweb event", {
+        error,
+        rrwebEvent,
       });
     }
   }
 
-  private applyMasking(event: BasicEvent): BasicEvent {
+  private applyMasking(event: eventWithTime): eventWithTime {
     // Apply custom masking based on configuration
     if (this.config.maskTextInputs || this.config.maskAllInputs) {
       this.logger.debug("SessionReplayPlugin applying masking", {
@@ -542,7 +318,7 @@ export class SessionReplayPlugin extends BasePlugin {
     return event;
   }
 
-  private maskSensitiveData(event: BasicEvent): BasicEvent {
+  private maskSensitiveData(event: eventWithTime): eventWithTime {
     this.logger.debug("SessionReplayPlugin masking sensitive data", {
       sessionId: this.sessionId,
       eventType: event.type,
@@ -551,7 +327,7 @@ export class SessionReplayPlugin extends BasePlugin {
     });
 
     // Deep clone the event to avoid mutating the original
-    const maskedEvent = JSON.parse(JSON.stringify(event)) as BasicEvent;
+    const maskedEvent = JSON.parse(JSON.stringify(event)) as eventWithTime;
 
     // Apply masking based on selectors
     if (this.config.maskTextSelector || this.config.maskInputSelector) {
@@ -607,17 +383,14 @@ export class SessionReplayPlugin extends BasePlugin {
       eventType: "session_replay",
       eventName: "session_replay",
       payload: {
+        rrweb_type: "session_start" as const,
         sessionId: this.sessionId,
         events: [],
         metadata: this.getMetadata(),
         config: this.config,
-        rrweb_type: "session_start" as const,
       },
       timestamp: new Date().toISOString(),
-      sessionId: this.sessionId,
-      ...(this.manager.getUserId() && {
-        userId: this.manager.getUserId() ?? "",
-      }),
+      userId: this.manager.getUserId() || "",
     };
 
     this.logger.info("SessionReplayPlugin created session start event", {
@@ -643,21 +416,17 @@ export class SessionReplayPlugin extends BasePlugin {
       timestamp: new Date().toISOString(),
     });
 
-    // Export any remaining batched events
-    this.exportEventBatch();
-
     const sessionEndEvent: SessionReplayEvent = {
       eventType: "session_replay",
       eventName: "session_replay",
       payload: {
+        rrweb_type: "session_end" as const,
         sessionId: this.sessionId,
         events: this.events.slice(),
         metadata: this.getMetadata(),
         config: this.config,
-        rrweb_type: "session_end" as const,
       },
       timestamp: new Date().toISOString(),
-      sessionId: this.sessionId,
       userId: this.manager.getUserId() || "",
     };
 
@@ -666,7 +435,6 @@ export class SessionReplayPlugin extends BasePlugin {
       eventType: sessionEndEvent.eventType,
       eventName: sessionEndEvent.eventName,
       rrwebType: sessionEndEvent.payload.rrweb_type,
-      eventCount: sessionEndEvent.payload.events.length,
       metadata: sessionEndEvent.payload.metadata,
     });
 
@@ -674,7 +442,7 @@ export class SessionReplayPlugin extends BasePlugin {
 
     this.logger.info("SessionReplayPlugin session end event sent", {
       sessionId: this.sessionId,
-      eventCount: sessionEndEvent.payload.events.length,
+      eventCount: this.events.length,
       timestamp: sessionEndEvent.timestamp,
     });
   }
@@ -710,35 +478,6 @@ export class SessionReplayPlugin extends BasePlugin {
         this.logger.info("SessionReplayPlugin stopped rrweb recording", {
           sessionId: this.sessionId,
         });
-      }
-
-      // Clear timers
-      if (this.throttleTimer) {
-        clearTimeout(this.throttleTimer);
-        this.throttleTimer = null;
-        this.logger.debug("SessionReplayPlugin cleared throttle timer", {
-          sessionId: this.sessionId,
-        });
-      }
-
-      if (this.batchTimer) {
-        clearTimeout(this.batchTimer);
-        this.batchTimer = null;
-        this.logger.debug("SessionReplayPlugin cleared batch timer", {
-          sessionId: this.sessionId,
-        });
-      }
-
-      // Process any remaining throttled event
-      if (this.lastThrottledEvent) {
-        this.batchEvents.push(this.lastThrottledEvent);
-        this.lastThrottledEvent = null;
-        this.logger.debug(
-          "SessionReplayPlugin processed remaining throttled event",
-          {
-            sessionId: this.sessionId,
-          }
-        );
       }
 
       // Send session end event
