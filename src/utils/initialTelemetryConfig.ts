@@ -42,8 +42,8 @@ export const initialTelemetryConfig: TelemetryConfig = {
       headMetaVerification: true,
     },
     // Session limits (reduced for better performance)
-    maxEvents: 1000, // Reduced from 10000
-    maxDuration: 300000, // 5 minutes (reduced from 30 minutes)
+    maxEvents: 10000,
+    maxDuration: 1000000, // 10 minutes (reduced from 30 minutes)
     // Batching configuration for hybrid approach
     batchSize: 50, // Larger batches for fewer network requests
     throttleEvents: false,
