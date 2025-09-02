@@ -24,8 +24,8 @@ export const initialTelemetryConfig: TelemetryConfig = {
     recordAfter: "load",
     inlineStylesheet: true,
     collectFonts: false,
-    checkoutEveryNms: 5000,
-    checkoutEveryNth: 500,
+    checkoutEveryNms: 15000, // Reduced frequency for better performance
+    checkoutEveryNth: 1000, // Reduced frequency for better performance
     blockClass: "rr-block",
     ignoreClass: "rr-ignore",
     maskTextClass: "rr-mask",
@@ -41,11 +41,11 @@ export const initialTelemetryConfig: TelemetryConfig = {
       headMetaAuthorship: true,
       headMetaVerification: true,
     },
-    // Session limits
+    // Session limits (reduced for better performance)
     maxEvents: 10000,
-    maxDuration: 1800000, // 30 minutes
+    maxDuration: 1000000, // 10 minutes (reduced from 30 minutes)
     // Batching configuration for hybrid approach
-    batchSize: 10, // Smaller batches for more frequent sending
+    batchSize: 50, // Larger batches for fewer network requests
     throttleEvents: false,
     throttleDelay: 100,
     // Privacy settings
@@ -73,7 +73,7 @@ export const initialTelemetryConfig: TelemetryConfig = {
 
   // Hyperlook-specific settings
   hyperlookMaxBatchSize: 25, // Match batch size for consistency
-  hyperlookMaxPayloadSize: 5 * 1024 * 1024, // 5MB max payload size
+  hyperlookMaxPayloadSize: 100 * 1024, // 100KB max payload size
 
   // Sampling and logging
   samplingRate: 1.0, // Full sampling by default

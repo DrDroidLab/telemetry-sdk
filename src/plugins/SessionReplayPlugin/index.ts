@@ -28,8 +28,8 @@ export class SessionReplayPlugin extends BasePlugin {
     super();
     this.sessionId = generateSessionId();
     this.config = {};
-    this.maxEvents = 10000; // Default max events
-    this.maxDuration = 30 * 60 * 1000; // 30 minutes default
+    this.maxEvents = 1000; // Default max events (reduced for performance)
+    this.maxDuration = 5 * 60 * 1000; // 5 minutes default (reduced for performance)
 
     this.logger.info("SessionReplayPlugin constructor called", {
       sessionId: this.sessionId,
@@ -67,8 +67,8 @@ export class SessionReplayPlugin extends BasePlugin {
       });
 
       // Set limits from config
-      this.maxEvents = this.config.maxEvents || 10000;
-      this.maxDuration = this.config.maxDuration || 30 * 60 * 1000;
+      this.maxEvents = this.config.maxEvents || 1000; // Reduced default for performance
+      this.maxDuration = this.config.maxDuration || 5 * 60 * 1000; // Reduced default for performance
 
       this.logger.info("SessionReplayPlugin limits configured", {
         sessionId: this.sessionId,

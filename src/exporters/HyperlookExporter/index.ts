@@ -119,10 +119,20 @@ export class HyperlookExporter implements TelemetryExporter {
     try {
       const payloadString = JSON.stringify(payload);
 
-      if (payloadString.length > this.maxPayloadSize) {
+      // Check if this payload contains session replay events
+      const hasSessionReplayEvents = payload.events.some(
+        event => event.event_type === "session_replay"
+      );
+
+      // Use larger size limit for session replay events (5MB), smaller for others (100KB)
+      const effectiveMaxSize = hasSessionReplayEvents
+        ? 5 * 1024 * 1024
+        : this.maxPayloadSize;
+
+      if (payloadString.length > effectiveMaxSize) {
         return {
           isValid: false,
-          error: `Payload size ${payloadString.length} exceeds maximum ${this.maxPayloadSize}`,
+          error: `Payload size ${payloadString.length} exceeds maximum ${effectiveMaxSize} (session_replay: ${hasSessionReplayEvents})`,
         };
       }
 
@@ -192,11 +202,6 @@ export class HyperlookExporter implements TelemetryExporter {
           this.logger.warn("No valid events in batch after transformation");
           continue;
         }
-
-        this.logger.debug("Sending batch to Hyperlook", {
-          batchSize: payload.events.length,
-          payloadSize: JSON.stringify(payload).length,
-        });
 
         // Create separate timeouts for connection and request
         const connectionController = new AbortController();
