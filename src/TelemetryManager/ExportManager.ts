@@ -5,7 +5,8 @@ import {
   hasNonRetryableError,
   extractErrorMessages,
 } from "./utils";
-import { MAX_BATCH_SIZE_BYTES } from "../constants";
+
+import { SessionReplayExportHandler } from "./SessionReplayExportHandler";
 
 export class ExportManager {
   private exporters: TelemetryExporter[] = [];
@@ -16,6 +17,7 @@ export class ExportManager {
   private baseRetryDelay: number;
   private maxRetryDelay: number;
   private isFlushing = false;
+  private sessionReplayHandler: SessionReplayExportHandler;
 
   constructor(
     logger: Logger,
@@ -34,6 +36,7 @@ export class ExportManager {
     this.baseRetryDelay = baseRetryDelay;
     this.maxRetryDelay = maxRetryDelay;
     this.circuitBreaker = new CircuitBreaker(logger);
+    this.sessionReplayHandler = new SessionReplayExportHandler(logger);
   }
 
   /**
@@ -180,46 +183,61 @@ export class ExportManager {
     const startTime = Date.now();
 
     try {
-      // Batch session replay events with max 5 per batch
-      const batchedEvents = this.batchSessionReplayEvents(events);
+      // Separate session replay events from normal events
+      const sessionReplayEvents = events.filter(
+        e => e.eventType === "session_replay"
+      );
+      const normalEvents = events.filter(e => e.eventType !== "session_replay");
 
       this.logger.info("Flushing events", {
         eventCount: events.length,
-        batchedEventCount: batchedEvents.length,
-        events: events.map(e => ({ type: e.eventType, name: e.eventName })),
+        sessionReplayEvents: sessionReplayEvents.length,
+        normalEvents: normalEvents.length,
         exporters: this.exporters.length,
         method: useBeacon ? "sendBeacon" : "fetch",
       });
 
-      // Process each batch
-      let allBatchesSuccessful = true;
+      let allEventsSuccessful = true;
       const eventsToReturnToBuffer: TelemetryEvent[] = [];
 
-      for (const batch of batchedEvents) {
-        // Assign event IDs to events that don't have them (preserve existing IDs for retries)
-        const eventsWithIds: TelemetryEvent[] = batch.map(event => ({
+      // Handle normal events with original logic (single batch)
+      if (normalEvents.length > 0) {
+        const eventsWithIds: TelemetryEvent[] = normalEvents.map(event => ({
           ...event,
           event_id: event.event_id || generateEventId(),
         }));
 
-        // Use sendBeacon for critical shutdown scenarios
+        let result;
         if (useBeacon) {
-          const result = this.flushWithBeacon(eventsWithIds);
-          if (!result.success && result.shouldReturnToBuffer) {
-            eventsToReturnToBuffer.push(...batch);
-            allBatchesSuccessful = false;
-          }
+          result = this.flushWithBeacon(eventsWithIds);
         } else {
-          const result = await this.flushBatch(eventsWithIds, 0, startTime);
-          if (!result.success && result.shouldReturnToBuffer) {
-            eventsToReturnToBuffer.push(...batch);
-            allBatchesSuccessful = false;
-          }
+          result = await this.flushBatch(eventsWithIds, 0, startTime);
+        }
+
+        if (!result.success && result.shouldReturnToBuffer) {
+          eventsToReturnToBuffer.push(...normalEvents);
+          allEventsSuccessful = false;
+        }
+      }
+
+      // Handle session replay events with special logic
+      if (sessionReplayEvents.length > 0) {
+        const sessionReplayResult =
+          await this.sessionReplayHandler.handleSessionReplayExports(
+            sessionReplayEvents,
+            this.flushWithBeacon.bind(this),
+            this.flushBatch.bind(this),
+            useBeacon
+          );
+
+        if (!sessionReplayResult.success) {
+          eventsToReturnToBuffer.push(...sessionReplayResult.failedEvents);
+          allEventsSuccessful = false;
         }
       }
 
       if (eventsToReturnToBuffer.length > 0) {
-        this.logger.warn("Some batches failed, returning events to buffer", {
+        this.logger.warn("Some events failed, returning to buffer", {
           totalEvents: events.length,
           failedEvents: eventsToReturnToBuffer.length,
           successfulEvents: events.length - eventsToReturnToBuffer.length,
@@ -227,173 +245,9 @@ export class ExportManager {
         return { success: false, shouldReturnToBuffer: true };
       }
 
-      return { success: allBatchesSuccessful, shouldReturnToBuffer: false };
+      return { success: allEventsSuccessful, shouldReturnToBuffer: false };
     } finally {
       this.isFlushing = false;
-    }
-  }
-
-  private batchSessionReplayEvents(
-    events: TelemetryEvent[]
-  ): TelemetryEvent[][] {
-    const batches: TelemetryEvent[][] = [];
-    let currentBatch: TelemetryEvent[] = [];
-
-    for (const event of events) {
-      // For session replay events, check if the single event is too large
-      if (event.eventType === "session_replay") {
-        const singleEventSize = this.calculateSingleEventSize(event);
-
-        if (singleEventSize > MAX_BATCH_SIZE_BYTES) {
-          // If current batch has events, save it first
-          if (currentBatch.length > 0) {
-            batches.push([...currentBatch]);
-            currentBatch = [];
-          }
-
-          // Send this large session replay event individually
-          batches.push([event]);
-          continue;
-        }
-      }
-
-      // Calculate the size of the current batch if we add this event
-      const testBatch = [...currentBatch, event];
-      const batchSize = this.calculateBatchSize(testBatch);
-
-      // If adding this event would exceed the size limit, start a new batch
-      if (batchSize > MAX_BATCH_SIZE_BYTES && currentBatch.length > 0) {
-        batches.push([...currentBatch]);
-        currentBatch = [];
-      }
-
-      currentBatch.push(event);
-    }
-
-    // Add the final batch if it has events
-    if (currentBatch.length > 0) {
-      batches.push(currentBatch);
-    }
-
-    this.logger.debug("Batched events for export by size", {
-      totalEvents: events.length,
-      batches: batches.length,
-      maxBatchSizeBytes: MAX_BATCH_SIZE_BYTES,
-      batchSizes: batches.map(batch => ({
-        eventCount: batch.length,
-        sizeBytes: this.calculateBatchSize(batch),
-        sizeKB: Math.round((this.calculateBatchSize(batch) / 1024) * 100) / 100,
-      })),
-      sessionReplayEvents: events.filter(e => e.eventType === "session_replay")
-        .length,
-    });
-
-    return batches;
-  }
-
-  private calculateSingleEventSize(event: TelemetryEvent): number {
-    try {
-      const eventString = JSON.stringify(event);
-      return new Blob([eventString]).size;
-    } catch (error) {
-      this.logger.warn(
-        "Failed to calculate single event size, using fallback",
-        {
-          error: error instanceof Error ? error.message : String(error),
-          eventType: event.eventType,
-        }
-      );
-
-      // Fallback: estimate size based on event type
-      if (event.eventType === "session_replay") {
-        return 100 * 1024; // Estimate 100KB for session replay events
-      } else {
-        return 5 * 1024; // Estimate 5KB for regular events
-      }
-    }
-  }
-
-  private calculateBatchSize(events: TelemetryEvent[]): number {
-    try {
-      // Create a sample payload to estimate size
-      const samplePayload = {
-        events: events.map(event => ({
-          eventType: event.eventType,
-          eventName: event.eventName,
-          timestamp: event.timestamp,
-          userId: event.userId,
-          sessionId: event.sessionId,
-          // For session replay events, include a sample of the payload
-          ...(event.eventType === "session_replay" && {
-            payload: {
-              rrweb_type: this.getPayloadProperty(event, "rrweb_type"),
-              sessionId: this.getPayloadProperty(event, "sessionId"),
-              eventCount: this.getEventsCount(event),
-              // Include a small sample of the actual events for size estimation
-              events: this.getEventsSample(event),
-            },
-          }),
-        })),
-      };
-
-      const payloadString = JSON.stringify(samplePayload);
-      return new Blob([payloadString]).size;
-    } catch (error) {
-      this.logger.warn("Failed to calculate batch size, using fallback", {
-        error: error instanceof Error ? error.message : String(error),
-        eventCount: events.length,
-      });
-
-      // Fallback: estimate size based on event count and type
-      let estimatedSize = 0;
-      for (const event of events) {
-        if (event.eventType === "session_replay") {
-          // Session replay events are typically larger due to DOM data
-          estimatedSize += 50 * 1024; // Estimate 50KB per session replay event
-        } else {
-          // Regular events are typically smaller
-          estimatedSize += 2 * 1024; // Estimate 2KB per regular event
-        }
-      }
-      return estimatedSize;
-    }
-  }
-
-  private getPayloadProperty(event: TelemetryEvent, property: string): unknown {
-    try {
-      const payload = event.payload;
-      if (payload && typeof payload === "object") {
-        return payload[property];
-      }
-      return undefined;
-    } catch {
-      return undefined;
-    }
-  }
-
-  private getEventsCount(event: TelemetryEvent): number {
-    try {
-      const payload = event.payload;
-      if (payload && typeof payload === "object") {
-        const events = payload.events;
-        return Array.isArray(events) ? events.length : 0;
-      }
-      return 0;
-    } catch {
-      return 0;
-    }
-  }
-
-  private getEventsSample(event: TelemetryEvent): unknown[] {
-    try {
-      const payload = event.payload;
-      if (payload && typeof payload === "object") {
-        const events = payload.events;
-        return Array.isArray(events) ? events.slice(0, 1) : [];
-      }
-      return [];
-    } catch {
-      return [];
     }
   }
 
