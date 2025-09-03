@@ -182,23 +182,24 @@ Initializes the telemetry SDK with the provided configuration. **Automatically s
 
 #### Configuration Options
 
-| Option               | Type           | Default        | Description                              |
-| -------------------- | -------------- | -------------- | ---------------------------------------- |
-| `hyperlookApiKey`    | `string`       | Required       | Your Hyperlook API key                   |
-| `batchSize`          | `number`       | `50`           | Number of events to batch before sending |
-| `flushInterval`      | `number`       | `30000`        | Flush interval in milliseconds           |
-| `maxRetries`         | `number`       | `3`            | Maximum number of retry attempts         |
-| `retryDelay`         | `number`       | `1000`         | Delay between retries in milliseconds    |
-| `samplingRate`       | `number`       | `1.0`          | Sampling rate (0.0 to 1.0)               |
-| `enablePageViews`    | `boolean`      | `true`         | Enable page view tracking (page_hit)     |
-| `enableClicks`       | `boolean`      | `true`         | Enable click event tracking              |
-| `enableLogs`         | `boolean`      | `true`         | Enable console log tracking              |
-| `enableNetwork`      | `boolean`      | `true`         | Enable network request tracking          |
-| `enablePerformance`  | `boolean`      | `true`         | Enable performance metrics tracking      |
-| `enableCustomEvents` | `boolean`      | `false`        | Enable custom events plugin              |
-| `sessionId`          | `string`       | Auto-generated | Custom session ID for tracking           |
-| `userId`             | `string`       | `undefined`    | Initial user ID for identification       |
-| `logging`            | `LoggerConfig` | `{}`           | Logging configuration                    |
+| Option                | Type           | Default        | Description                              |
+| --------------------- | -------------- | -------------- | ---------------------------------------- |
+| `hyperlookApiKey`     | `string`       | Required       | Your Hyperlook API key                   |
+| `batchSize`           | `number`       | `50`           | Number of events to batch before sending |
+| `flushInterval`       | `number`       | `30000`        | Flush interval in milliseconds           |
+| `maxRetries`          | `number`       | `3`            | Maximum number of retry attempts         |
+| `retryDelay`          | `number`       | `1000`         | Delay between retries in milliseconds    |
+| `samplingRate`        | `number`       | `1.0`          | Sampling rate (0.0 to 1.0)               |
+| `enablePageViews`     | `boolean`      | `true`         | Enable page view tracking (page_hit)     |
+| `enableClicks`        | `boolean`      | `true`         | Enable click event tracking              |
+| `enableLogs`          | `boolean`      | `true`         | Enable console log tracking              |
+| `enableNetwork`       | `boolean`      | `true`         | Enable network request tracking          |
+| `enablePerformance`   | `boolean`      | `true`         | Enable performance metrics tracking      |
+| `enableCustomEvents`  | `boolean`      | `false`        | Enable custom events plugin              |
+| `enableSessionReplay` | `boolean`      | `false`        | Enable session replay recording          |
+| `sessionId`           | `string`       | Auto-generated | Custom session ID for tracking           |
+| `userId`              | `string`       | `undefined`    | Initial user ID for identification       |
+| `logging`             | `LoggerConfig` | `{}`           | Logging configuration                    |
 
 ### TelemetryManager Methods
 
@@ -302,6 +303,7 @@ if (customPlugin) {
 - **User Interactions**: Captures click events and user interactions
 - **User Identification**: Track user identity with traits and session management
 - **Custom Events**: Capture user-defined events with flexible payloads
+- **Session Replay**: Record and replay user sessions for debugging and analysis
 - **Session Tracking**: Automatic session ID generation and tracking
 - **Input Validation**: Comprehensive validation and sanitization of all user data
 - **Automatic Shutdown**: Ensures events are flushed when the application closes
@@ -316,6 +318,7 @@ The SDK automatically captures various types of events:
 - **Performance Events**: Page load metrics, Core Web Vitals, long tasks
 - **Log Events**: Console logs (log, warn, error, info, debug)
 - **Error Events**: JavaScript errors and exceptions
+- **Session Replay Events**: User session recordings for debugging and analysis
 
 ## 🔌 Plugin System
 
